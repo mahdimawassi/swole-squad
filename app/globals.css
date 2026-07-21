@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Rubik:wght@400;500;700;800;900&display=swap');
+
+:root {
+  --ink: #141414;
+  --paper: #ffe066;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Rubik', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+input {
+  font-family: inherit;
+}
+
+input:focus {
+  outline: none;
+}
+
+button {
+  font-family: 'Rubik', system-ui, sans-serif;
+}
+
+/* Neo-brutalist press: the button physically sinks into its shadow. */
+.nb {
+  transition: transform 0.04s ease;
+}
+.nb:active {
+  transform: translate(3px, 3px) !important;
+  box-shadow: none !important;
+}
+
+.flexing {
+  animation: flexPop 0.5s cubic-bezier(0.2, 1.5, 0.4, 1);
+  transform-origin: 50% 82%;
+}
+@keyframes flexPop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.13) rotate(-2deg);
+  }
+  70% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.toast {
+  animation: toastPop 0.24s ease-out;
+}
+@keyframes toastPop {
+  0% {
+    transform: translate(-50%, 18px) scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flexing,
+  .toast {
+    animation: none;
+  }
+  .nb {
+    transition: none;
+  }
+}
