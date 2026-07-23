@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from './Header';
 import { normalizeCode } from '@/lib/challenge';
-import { INK, ARCHIVO, PAGE, card, btn, input, label } from '@/lib/ui';
+import { ARCHIVO, PAGE, card, btn, input, label } from '@/lib/ui';
 
 export default function CodeEntry() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export default function CodeEntry() {
 
   return (
     <main style={PAGE}>
-      <Header badge="JOIN" />
+      <Header badge="JOIN" back />
       <div style={card}>
         <div style={{ fontFamily: ARCHIVO, fontSize: 20, marginBottom: 6 }}>GOT A CODE?</div>
         <p style={{ fontWeight: 500, fontSize: 14, marginTop: 0, marginBottom: 16 }}>
@@ -78,14 +78,6 @@ export default function CodeEntry() {
         </button>
       </div>
 
-      <div style={{ textAlign: 'center' }}>
-        <button
-          onClick={() => router.push('/')}
-          style={{ background: 'none', border: 'none', fontWeight: 700, fontSize: 13, textDecoration: 'underline', cursor: 'pointer', color: INK, fontFamily: 'inherit' }}
-        >
-          Back
-        </button>
-      </div>
     </main>
   );
 }

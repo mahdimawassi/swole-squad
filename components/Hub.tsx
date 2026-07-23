@@ -18,7 +18,7 @@ import {
   clamp,
 } from '@/lib/challenge';
 import type { User, HubEntry } from '@/lib/types';
-import { INK, ARCHIVO, PAGE, card, btn, barOuter } from '@/lib/ui';
+import { INK, ARCHIVO, card, btn, barOuter } from '@/lib/ui';
 
 export default function Hub({
   user,
@@ -34,10 +34,12 @@ export default function Hub({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showBanner, setShowBanner] = useState(Boolean(justCreated));
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setToday(todayStr());
+    // Opening your link on a new device is what makes it remember you there.
     try {
       localStorage.setItem(
         'swole_me',
@@ -70,6 +72,10 @@ export default function Hub({
     ? entries.filter((e) => phaseOf(e.challenge, today) === 'active' && e.today <= 0).length
     : 0;
 
+  const newChallenge = justCreated
+    ? entries.find((e) => e.challenge.invite_code === justCreated)
+    : undefined;
+
   async function quickLog(e: HubEntry) {
     if (busyId) return;
     const amount = dailyTarget(e.challenge);
@@ -94,10 +100,10 @@ export default function Hub({
       }
       const goal = totalGoalFor(e.challenge);
       const before = getSwole(e.total, goal).tier;
-      const after = getSwole(e.total + amount, goal).tier;
+      const after = getSwole(e.total + amount, goal);
       showToast(
-        after > before
-          ? `💪 LEVEL UP — ${getSwole(e.total + amount, goal).title.toUpperCase()}!`
+        after.tier > before
+          ? `💪 LEVEL UP — ${after.title.toUpperCase()}!`
           : `🔥 +${fmt(amount)} ${e.challenge.unit_label} logged.`,
       );
       router.refresh();
@@ -111,25 +117,44 @@ export default function Hub({
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
   return (
-    <main style={PAGE}>
+    <main style={{ maxWidth: 480, margin: '0 auto', padding: '18px 14px 110px' }}>
       <Header
         badge={user.name.toUpperCase()}
-        sub={needsToday > 0 ? `${needsToday} challenge${needsToday === 1 ? '' : 's'} still need you today 👀` : undefined}
+        sub={
+          needsToday > 0
+            ? `${needsToday} challenge${needsToday === 1 ? '' : 's'} still need you today 👀`
+            : entries.length > 0
+              ? 'All caught up. Look at you.'
+              : undefined
+        }
       />
 
-      {justCreated && (
-        <div
-          style={{
-            ...card,
-            background: '#FFF3B0',
-            textAlign: 'center',
-            padding: 16,
-          }}
-        >
-          <div style={{ fontFamily: ARCHIVO, fontSize: 17 }}>🎉 CHALLENGE CREATED</div>
-          <p style={{ fontWeight: 600, fontSize: 13, margin: '6px 0 12px' }}>
-            Share this code so your crew can jump in. It works as a link too.
-          </p>
+      {showBanner && justCreated && (
+        <div style={{ ...card, background: '#FFF3B0', padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: ARCHIVO, fontSize: 17 }}>🎉 CHALLENGE CREATED</div>
+              <p style={{ fontWeight: 600, fontSize: 13, margin: '6px 0 0' }}>
+                Share this code so your crew can jump in.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowBanner(false)}
+              aria-label="Dismiss"
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: 20,
+                fontWeight: 900,
+                cursor: 'pointer',
+                lineHeight: 1,
+                color: INK,
+                padding: 0,
+              }}
+            >
+              ×
+            </button>
+          </div>
           <div
             style={{
               fontFamily: ARCHIVO,
@@ -139,26 +164,38 @@ export default function Hub({
               border: `3px solid ${INK}`,
               borderRadius: 14,
               padding: '10px 8px',
-              marginBottom: 10,
+              margin: '12px 0 10px',
+              textAlign: 'center',
             }}
           >
             {justCreated}
           </div>
-          <button
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(`${origin}/join/${justCreated}`);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1600);
-              } catch {
-                // ignore
-              }
-            }}
-            className="nb"
-            style={btn('#FF5DA2', { color: '#fff', width: '100%' })}
-          >
-            {copied ? 'COPIED ✅' : 'COPY INVITE LINK'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(`${origin}/join/${justCreated}`);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1600);
+                } catch {
+                  // ignore
+                }
+              }}
+              className="nb"
+              style={btn('#FF5DA2', { color: '#fff', flex: 1, fontSize: 15 })}
+            >
+              {copied ? 'COPIED ✅' : 'COPY LINK'}
+            </button>
+            {newChallenge && (
+              <button
+                onClick={() => router.push(`/me/${user.secret_token}/c/${newChallenge.challenge.id}`)}
+                className="nb"
+                style={btn('#fff', { flex: 1, fontSize: 15 })}
+              >
+                Open it →
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -168,8 +205,8 @@ export default function Hub({
             <SwoleGuy total={0} totalGoal={100} color={user.avatar_color} size={110} />
           </div>
           <div style={{ fontFamily: ARCHIVO, fontSize: 19, marginTop: 6 }}>NOTHING GOING ON</div>
-          <p style={{ fontWeight: 600, fontSize: 13, marginTop: 6 }}>
-            You&rsquo;re not in any challenges yet. Start one or punch in a code.
+          <p style={{ fontWeight: 600, fontSize: 13, marginTop: 6, marginBottom: 0 }}>
+            You&rsquo;re not in any challenges yet. Start one or punch in a code below.
           </p>
         </div>
       )}
@@ -183,88 +220,99 @@ export default function Hub({
         const pace = today ? paceFor(c, e.total, today) : null;
         const doneToday = e.today > 0;
         const target = dailyTarget(c);
+        const open = () => router.push(`/me/${user.secret_token}/c/${c.id}`);
 
         return (
           <div key={c.id} style={{ ...card, padding: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <div style={{ fontSize: 22 }}>{emojiFor(c.activity)}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontFamily: ARCHIVO,
-                    fontSize: 16,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {c.name}
+            <div
+              onClick={open}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(ev) => {
+                if (ev.key === 'Enter') open();
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <div style={{ fontSize: 22 }}>{emojiFor(c.activity)}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontFamily: ARCHIVO,
+                      fontSize: 16,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {c.name}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.7 }}>
+                    {goalLabel(c)} · {e.squadSize} in
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.7 }}>
-                  {goalLabel(c)} · {e.squadSize} in
+                {today && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 900,
+                      background: doneToday ? '#37C871' : ph === 'active' ? '#FFD54A' : '#EFE6C6',
+                      border: `2px solid ${INK}`,
+                      borderRadius: 999,
+                      padding: '4px 9px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {ph === 'upcoming' ? 'SOON' : ph === 'done' ? 'DONE' : doneToday ? '✅ TODAY' : `DAY ${day}`}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <SwoleGuy total={e.total} totalGoal={goal} color={user.avatar_color} size={62} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800, marginBottom: 4 }}>
+                    <span>{lv.title}</span>
+                    <span>#{e.rank}</span>
+                  </div>
+                  <div style={barOuter}>
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${lv.pct}%`,
+                        background: user.avatar_color,
+                        transition: 'width .45s ease',
+                      }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.75, marginTop: 4 }}>
+                    {fmt(e.total)} / {fmt(goal)} {c.unit_label}
+                    {e.streak > 0 && today ? ` · 🔥${e.streak}` : ''}
+                  </div>
                 </div>
               </div>
-              {today && (
+
+              {today && pace && ph === 'active' && (
                 <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 900,
-                    background: doneToday ? '#37C871' : ph === 'active' ? '#FFD54A' : '#EFE6C6',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    marginTop: 10,
+                    padding: '6px 10px',
+                    borderRadius: 10,
+                    background:
+                      pace.status === 'behind' ? '#FFD9E2' : pace.status === 'ahead' ? '#D9F7E5' : '#FFF3B0',
                     border: `2px solid ${INK}`,
-                    borderRadius: 999,
-                    padding: '4px 9px',
-                    whiteSpace: 'nowrap',
                   }}
                 >
-                  {ph === 'upcoming' ? 'SOON' : ph === 'done' ? 'DONE' : doneToday ? '✅ TODAY' : `DAY ${day}`}
+                  {pace.status === 'behind'
+                    ? `😬 Behind pace. ${fmt(pace.perDay)} ${c.unit_label}/day to catch up.`
+                    : pace.status === 'ahead'
+                      ? '😎 Ahead of pace. Show-off.'
+                      : `🎯 On pace. Keep at ${fmt(pace.perDay)} ${c.unit_label}/day.`}
                 </div>
               )}
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <SwoleGuy total={e.total} totalGoal={goal} color={user.avatar_color} size={62} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800, marginBottom: 4 }}>
-                  <span>{lv.title}</span>
-                  <span>#{e.rank}</span>
-                </div>
-                <div style={barOuter}>
-                  <div
-                    style={{
-                      height: '100%',
-                      width: `${lv.pct}%`,
-                      background: user.avatar_color,
-                      transition: 'width .45s ease',
-                    }}
-                  />
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.75, marginTop: 4 }}>
-                  {fmt(e.total)} / {fmt(goal)} {c.unit_label}
-                  {e.streak > 0 && today ? ` · 🔥${e.streak}` : ''}
-                </div>
-              </div>
-            </div>
-
-            {today && pace && ph === 'active' && (
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 800,
-                  marginTop: 10,
-                  padding: '6px 10px',
-                  borderRadius: 10,
-                  background:
-                    pace.status === 'behind' ? '#FFD9E2' : pace.status === 'ahead' ? '#D9F7E5' : '#FFF3B0',
-                  border: `2px solid ${INK}`,
-                }}
-              >
-                {pace.status === 'behind'
-                  ? `😬 Behind pace. ${fmt(pace.perDay)} ${c.unit_label}/day to catch up.`
-                  : pace.status === 'ahead'
-                    ? '😎 Ahead of pace. Show-off.'
-                    : `🎯 On pace. Keep at ${fmt(pace.perDay)} ${c.unit_label}/day.`}
-              </div>
-            )}
 
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               {ph === 'active' && (
@@ -282,11 +330,7 @@ export default function Hub({
                   {busyId === c.id ? '…' : `+${fmt(target)} ${c.unit_label}`}
                 </button>
               )}
-              <button
-                onClick={() => router.push(`/me/${user.secret_token}/c/${c.id}`)}
-                className="nb"
-                style={btn('#fff', { flex: ph === 'active' ? 0.8 : 1, fontSize: 15 })}
-              >
+              <button onClick={open} className="nb" style={btn('#fff', { flex: ph === 'active' ? 0.8 : 1, fontSize: 15 })}>
                 Open →
               </button>
             </div>
@@ -294,25 +338,39 @@ export default function Hub({
         );
       })}
 
-      <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-        <button onClick={() => router.push('/new')} className="nb" style={btn('#FF5DA2', { flex: 1, color: '#fff', fontSize: 15 })}>
-          🚀 New
-        </button>
-        <button onClick={() => router.push('/join')} className="nb" style={btn('#4D7CFF', { flex: 1, color: '#fff', fontSize: 15 })}>
-          🎟️ Join
-        </button>
-      </div>
-
       <p style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, opacity: 0.65, marginTop: 18 }}>
         Bookmark this page. It&rsquo;s your key, and it works on any device.
       </p>
+
+      {/* Always reachable, however many challenges are stacked above. */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: '#FFE066',
+          borderTop: `3px solid ${INK}`,
+          padding: '12px 14px',
+          zIndex: 40,
+        }}
+      >
+        <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', gap: 10 }}>
+          <button onClick={() => router.push('/new')} className="nb" style={btn('#FF5DA2', { flex: 1, color: '#fff', fontSize: 15 })}>
+            🚀 New
+          </button>
+          <button onClick={() => router.push('/join')} className="nb" style={btn('#4D7CFF', { flex: 1, color: '#fff', fontSize: 15 })}>
+            🎟️ Join
+          </button>
+        </div>
+      </div>
 
       {toast && (
         <div
           className="toast"
           style={{
             position: 'fixed',
-            bottom: 22,
+            bottom: 92,
             left: '50%',
             background: INK,
             color: '#FFE066',

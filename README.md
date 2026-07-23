@@ -37,6 +37,23 @@ Once you've confirmed everything works, you can optionally run the cleanup lines
 
 ---
 
+## If you already deployed the first v2 build
+
+That build had a bug: creating a challenge made a **new profile** instead of reusing yours, so one person could end up split across several rows in `users`. The symptom was landing on a hub that showed only the challenge you just made, with your other ones missing.
+
+The app is fixed. To repair the rows it already created:
+
+1. Supabase → **SQL Editor**, paste `supabase/merge-users.sql` and run **STEP 1**. It lists every profile with how many challenges and how much history each holds.
+2. Spot the duplicates (same name, one row with your real history, the others nearly empty).
+3. Run **STEP 2** once to install the `merge_users` helper.
+4. For each duplicate, run `select merge_users('id-to-keep', 'id-to-delete');`
+
+The merge moves challenges, memberships, and daily entries onto the profile you keep, adds the amounts together where both profiles logged the same day, transfers admin rights, and keeps whichever email exists. Nothing is lost.
+
+Afterwards, open the surviving profile's `/me/<token>` link once on each of your devices so the browser saves the right one. If a device is stuck on a dead link, the error screen has a **Start over** button.
+
+---
+
 ## Environment variables
 
 In Vercel → your project → **Settings → Environment Variables**:

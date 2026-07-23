@@ -81,7 +81,7 @@ export default function JoinChallenge({ challenge, squadSize }: { challenge: Cha
   if (sent) {
     return (
       <main style={PAGE}>
-        <Header />
+        <Header back />
         <div style={{ ...card, textAlign: 'center' }}>
           <div style={{ fontSize: 42 }}>📬</div>
           <div style={{ fontFamily: ARCHIVO, fontSize: 20, margin: '8px 0' }}>CHECK YOUR EMAIL</div>
@@ -96,7 +96,7 @@ export default function JoinChallenge({ challenge, squadSize }: { challenge: Cha
 
   return (
     <main style={PAGE}>
-      <Header badge={`${squadSize} IN`} />
+      <Header badge={`${squadSize} IN`} back />
 
       <div style={{ ...card, textAlign: 'center' }}>
         <div style={{ fontSize: 34 }}>{emojiFor(challenge.activity)}</div>

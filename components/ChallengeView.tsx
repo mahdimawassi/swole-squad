@@ -190,19 +190,22 @@ export default function ChallengeView({
 
   return (
     <main style={PAGE}>
-      <Header badge={`${emojiFor(challenge.activity)} ${goalLabel(challenge).toUpperCase()}`} />
+      <Header
+        badge={`${emojiFor(challenge.activity)} ${goalLabel(challenge).toUpperCase()}`}
+        back={`/me/${user.secret_token}`}
+      />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        <button
-          onClick={() => router.push(`/me/${user.secret_token}`)}
-          className="nb"
-          style={btn('#fff', { padding: '9px 12px', fontSize: 14 })}
-        >
-          ←
-        </button>
-        <div style={{ fontFamily: ARCHIVO, fontSize: 19, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {challenge.name}
-        </div>
+      <div
+        style={{
+          fontFamily: ARCHIVO,
+          fontSize: 20,
+          marginBottom: 14,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {challenge.name}
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>

@@ -13,7 +13,13 @@ export default async function ChallengePage({
 
   const user = await getUserByToken(token);
   if (!user) {
-    return <Notice title="We can’t find your spot" body="This link may be broken. Try your invite link again." />;
+    return (
+      <Notice
+        title="We can’t find your spot"
+        body="This link may be broken. Try your invite link again."
+        reset
+      />
+    );
   }
 
   const challenge = await getChallengeById(cid);

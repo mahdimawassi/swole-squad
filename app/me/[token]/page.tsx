@@ -22,6 +22,7 @@ export default async function HubPage({
       <Notice
         title="We can’t find your spot"
         body="This link may be broken or out of date. Try your invite link again, or ask a squad-mate to re-share it."
+        reset
       />
     );
   }

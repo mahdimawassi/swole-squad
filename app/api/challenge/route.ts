@@ -54,13 +54,31 @@ export async function POST(req: Request) {
 
     const supabase = getAdmin();
 
-    // Reuse the existing user where we can, so one person is one user.
+    // ONE PERSON = ONE USER. Resolve an existing profile before creating one,
+    // first by the token saved on their device, then by email. Only a genuinely
+    // new person gets a new row.
     let user = null;
     const bodyToken = body?.creator?.token ? String(body.creator.token) : '';
     if (bodyToken) user = await getUserByToken(bodyToken);
     if (!user && creatorEmailRaw) user = await getUserByEmail(creatorEmailRaw);
 
-    if (!user) {
+    if (user) {
+      // Keep the profile current: fill in a missing email, and apply a name or
+      // colour change they made on this screen.
+      const patch: Record<string, string> = {};
+      if (creatorEmailRaw && !user.email) patch.email = creatorEmailRaw;
+      if (creatorName && creatorName !== user.name) patch.name = creatorName;
+      if (creatorColor !== user.avatar_color) patch.avatar_color = creatorColor;
+      if (Object.keys(patch).length > 0) {
+        const { data: updated } = await supabase
+          .from('users')
+          .update(patch)
+          .eq('id', user.id)
+          .select('*')
+          .maybeSingle();
+        if (updated) user = updated;
+      }
+    } else {
       const { data: created, error: uErr } = await supabase
         .from('users')
         .insert({ name: creatorName, avatar_color: creatorColor, email: creatorEmailRaw || null })
@@ -69,6 +87,8 @@ export async function POST(req: Request) {
       if (uErr || !created) return NextResponse.json({ error: 'Could not create your profile.' }, { status: 500 });
       user = created;
     }
+
+    if (!user) return NextResponse.json({ error: 'Could not resolve your profile.' }, { status: 500 });
 
     // Unique invite code, with a few retries in the (unlikely) event of a clash.
     let challenge = null;

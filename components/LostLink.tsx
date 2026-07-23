@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Header from './Header';
-import { INK, ARCHIVO, PAGE, card, btn, input, label } from '@/lib/ui';
+import { ARCHIVO, PAGE, card, btn, input, label } from '@/lib/ui';
 
 export default function LostLink() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -38,7 +36,7 @@ export default function LostLink() {
 
   return (
     <main style={PAGE}>
-      <Header />
+      <Header back="/" />
       <div style={card}>
         {done ? (
           <div style={{ textAlign: 'center' }}>
@@ -76,14 +74,6 @@ export default function LostLink() {
             </button>
           </>
         )}
-      </div>
-      <div style={{ textAlign: 'center' }}>
-        <button
-          onClick={() => router.push('/')}
-          style={{ background: 'none', border: 'none', fontWeight: 700, fontSize: 13, textDecoration: 'underline', cursor: 'pointer', color: INK, fontFamily: 'inherit' }}
-        >
-          Back
-        </button>
       </div>
     </main>
   );
