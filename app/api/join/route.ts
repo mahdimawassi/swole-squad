@@ -1,38 +1,100 @@
 import { NextResponse } from 'next/server';
 import { getAdmin } from '@/lib/supabaseAdmin';
-import { AVATAR_COLORS } from '@/lib/challenge';
+import { getChallengeByCode, getUserByEmail, getUserByToken } from '@/lib/data';
+import { AVATAR_COLORS, normalizeCode } from '@/lib/challenge';
+import { sendAccessLink, isEmail, emailEnabled } from '@/lib/email';
+
+function mask(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!domain) return 'your inbox';
+  const head = local.slice(0, 1);
+  return `${head}${'*'.repeat(Math.max(2, local.length - 1))}@${domain}`;
+}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const code = String(body?.code ?? '');
+    const code = normalizeCode(String(body?.code ?? ''));
+    const token = String(body?.token ?? '');
     const name = String(body?.name ?? '').trim().slice(0, 40);
-    const rawColor = String(body?.avatar_color ?? '');
+    const email = String(body?.email ?? '').trim().toLowerCase();
+    const color = AVATAR_COLORS.some((c) => c.hex === body?.avatar_color)
+      ? String(body.avatar_color)
+      : AVATAR_COLORS[0].hex;
 
-    if (!name) {
-      return NextResponse.json({ error: 'Please enter a name.' }, { status: 400 });
-    }
-    const color = AVATAR_COLORS.some((c) => c.hex === rawColor) ? rawColor : AVATAR_COLORS[0].hex;
-
-    const supabase = getAdmin();
-    const { data: challenge, error: cErr } = await supabase
-      .from('challenges')
-      .select('id')
-      .eq('invite_code', code)
-      .maybeSingle();
-
-    if (cErr) return NextResponse.json({ error: 'Server error. Try again.' }, { status: 500 });
+    const challenge = await getChallengeByCode(code);
     if (!challenge) return NextResponse.json({ error: 'That challenge was not found.' }, { status: 404 });
 
-    const { data, error } = await supabase
+    const supabase = getAdmin();
+    const origin = new URL(req.url).origin;
+
+    // 1. Already known on this device: straight in, no questions.
+    let user = token ? await getUserByToken(token) : null;
+    let emailedInstead = false;
+
+    // 2. Otherwise, match on email so one person stays one user.
+    if (!user && email) {
+      if (!isEmail(email)) return NextResponse.json({ error: 'That email looks off.' }, { status: 400 });
+      const existing = await getUserByEmail(email);
+      if (existing) {
+        user = existing;
+        // Someone typed an email that already belongs to a squad member. Do not
+        // hand over the account, mail the link to the address on file instead.
+        emailedInstead = emailEnabled();
+      }
+    }
+
+    // 3. Brand new person.
+    if (!user) {
+      if (!name) return NextResponse.json({ error: 'Enter a name.' }, { status: 400 });
+      if (email && !isEmail(email)) return NextResponse.json({ error: 'That email looks off.' }, { status: 400 });
+      const { data: created, error } = await supabase
+        .from('users')
+        .insert({ name, avatar_color: color, email: email || null })
+        .select('*')
+        .single();
+      if (error || !created) return NextResponse.json({ error: 'Could not create your profile.' }, { status: 500 });
+      user = created;
+    }
+
+    if (!user) return NextResponse.json({ error: 'Could not create your profile.' }, { status: 500 });
+
+    // Add them to the challenge, or un-remove them if they were kicked before.
+    const { data: existingRow } = await supabase
       .from('participants')
-      .insert({ challenge_id: challenge.id, name, avatar_color: color })
-      .select('secret_token')
-      .single();
+      .select('id, removed_at')
+      .eq('challenge_id', challenge.id)
+      .eq('user_id', user.id)
+      .maybeSingle();
 
-    if (error || !data) return NextResponse.json({ error: 'Could not join. Try again.' }, { status: 500 });
+    if (existingRow) {
+      if (existingRow.removed_at) {
+        await supabase.from('participants').update({ removed_at: null }).eq('id', existingRow.id);
+      }
+    } else {
+      const { error: pErr } = await supabase
+        .from('participants')
+        .insert({ challenge_id: challenge.id, user_id: user.id });
+      if (pErr) return NextResponse.json({ error: 'Could not add you to the challenge.' }, { status: 500 });
+    }
 
-    return NextResponse.json({ token: data.secret_token });
+    const link = `${origin}/me/${user.secret_token}`;
+
+    if (user.email) {
+      await sendAccessLink({
+        to: user.email,
+        name: user.name,
+        link,
+        challengeName: challenge.name,
+        inviteUrl: `${origin}/join/${challenge.invite_code}`,
+      });
+    }
+
+    if (emailedInstead) {
+      return NextResponse.json({ emailed: true, masked: mask(user.email ?? email) });
+    }
+
+    return NextResponse.json({ token: user.secret_token });
   } catch {
     return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
   }

@@ -1,41 +1,52 @@
-import { getAdmin } from '@/lib/supabaseAdmin';
-import Dashboard from '@/components/Dashboard';
+import Hub from '@/components/Hub';
 import Notice from '@/components/Notice';
-import type { Participant, LogRow } from '@/lib/types';
+import { getUserByToken, getMyChallenges, getMembers, getLogsFor } from '@/lib/data';
+import { computeStats, todayStr } from '@/lib/challenge';
+import type { HubEntry } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MePage({ params }: { params: Promise<{ token: string }> }) {
+export default async function HubPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ new?: string }>;
+}) {
   const { token } = await params;
-  const supabase = getAdmin();
+  const { new: justCreated } = await searchParams;
 
-  const { data: me } = await supabase.from('participants').select('*').eq('secret_token', token).maybeSingle();
-  if (!me) {
+  const user = await getUserByToken(token);
+  if (!user) {
     return (
       <Notice
         title="We can’t find your spot"
-        body="This link may be broken. Try the invite link again, or ask a squad-mate to re-share it."
+        body="This link may be broken or out of date. Try your invite link again, or ask a squad-mate to re-share it."
       />
     );
   }
 
-  const { data: challenge } = await supabase.from('challenges').select('*').eq('id', me.challenge_id).maybeSingle();
-  if (!challenge) {
-    return <Notice title="Challenge missing" body="This challenge no longer exists." />;
-  }
+  const mine = await getMyChallenges(user.id);
+  const today = todayStr();
 
-  const { data: squadData } = await supabase
-    .from('participants')
-    .select('*')
-    .eq('challenge_id', me.challenge_id)
-    .order('created_at', { ascending: true });
+  const entries: HubEntry[] = await Promise.all(
+    mine.map(async ({ challenge, participant_id }) => {
+      const members = await getMembers(challenge.id);
+      const logs = await getLogsFor(members.map((m) => m.participant_id));
+      const stats = computeStats(members, logs, today);
+      const ranked = [...stats].sort((a, b) => b.total - a.total);
+      const me = stats.find((s) => s.member.participant_id === participant_id);
+      return {
+        challenge,
+        participant_id,
+        total: me?.total ?? 0,
+        today: me?.today ?? 0,
+        streak: me?.streak ?? 0,
+        rank: ranked.findIndex((s) => s.member.participant_id === participant_id) + 1 || 1,
+        squadSize: members.length,
+      };
+    }),
+  );
 
-  const squad: Participant[] = squadData ?? [me];
-  if (!squad.some((p) => p.id === me.id)) squad.push(me);
-
-  const pids = squad.map((p) => p.id);
-  const { data: logsData } = await supabase.from('logs').select('*').in('participant_id', pids);
-  const logs: LogRow[] = logsData ?? [];
-
-  return <Dashboard token={token} me={me} challenge={challenge} squad={squad} logs={logs} />;
+  return <Hub user={user} entries={entries} justCreated={justCreated} />;
 }

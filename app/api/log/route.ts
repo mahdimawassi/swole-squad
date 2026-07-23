@@ -1,38 +1,58 @@
 import { NextResponse } from 'next/server';
 import { getAdmin } from '@/lib/supabaseAdmin';
+import { getUserByToken, getChallengeById } from '@/lib/data';
+import { daysBetween } from '@/lib/challenge';
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const token = String(body?.token ?? '');
-    const reps = Math.floor(Number(body?.reps));
+    const challengeId = String(body?.challenge_id ?? '');
+    const amount = Number(body?.amount);
     const day = String(body?.day ?? '');
+    const mode = body?.mode === 'set' ? 'set' : 'add';
 
     if (!token) return NextResponse.json({ error: 'Missing token.' }, { status: 400 });
-    if (!Number.isFinite(reps) || reps <= 0 || reps > 5000) {
-      return NextResponse.json({ error: 'Enter a number between 1 and 5000.' }, { status: 400 });
+    if (!challengeId) return NextResponse.json({ error: 'Missing challenge.' }, { status: 400 });
+    if (!DATE_RE.test(day)) return NextResponse.json({ error: 'Bad date.' }, { status: 400 });
+    if (!Number.isFinite(amount) || amount < 0 || amount > 1_000_000) {
+      return NextResponse.json({ error: 'Enter a sensible number.' }, { status: 400 });
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
-      return NextResponse.json({ error: 'Bad date.' }, { status: 400 });
+    if (mode === 'add' && amount <= 0) {
+      return NextResponse.json({ error: 'Enter a number above zero.' }, { status: 400 });
+    }
+
+    const user = await getUserByToken(token);
+    if (!user) return NextResponse.json({ error: 'We could not find you.' }, { status: 404 });
+
+    const challenge = await getChallengeById(challengeId);
+    if (!challenge) return NextResponse.json({ error: 'Challenge not found.' }, { status: 404 });
+
+    // No logging outside the challenge window.
+    if (daysBetween(challenge.start_date, day) < 0 || daysBetween(day, challenge.end_date) < 0) {
+      return NextResponse.json({ error: 'That day is outside the challenge.' }, { status: 400 });
     }
 
     const supabase = getAdmin();
-    const { data: participant, error: pErr } = await supabase
+    const { data: participant } = await supabase
       .from('participants')
       .select('id')
-      .eq('secret_token', token)
+      .eq('challenge_id', challengeId)
+      .eq('user_id', user.id)
+      .is('removed_at', null)
       .maybeSingle();
 
-    if (pErr) return NextResponse.json({ error: 'Server error. Try again.' }, { status: 500 });
-    if (!participant) return NextResponse.json({ error: 'We could not find you.' }, { status: 404 });
+    if (!participant) return NextResponse.json({ error: 'You are not in this challenge.' }, { status: 403 });
 
-    const { error: rErr } = await supabase.rpc('add_reps', {
+    const { error } = await supabase.rpc('log_amount', {
       p_pid: participant.id,
       p_day: day,
-      p_reps: reps,
+      p_amount: amount,
+      p_mode: mode,
     });
-
-    if (rErr) return NextResponse.json({ error: 'Could not save your reps.' }, { status: 500 });
+    if (error) return NextResponse.json({ error: 'Could not save.' }, { status: 500 });
 
     return NextResponse.json({ ok: true });
   } catch {
