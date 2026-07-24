@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SwoleGuy from './SwoleGuy';
 import Header from './Header';
-import { AVATAR_COLORS, goalLabel, emojiFor, totalGoalFor, prettyDate, fmt } from '@/lib/challenge';
+import { AVATAR_COLORS, goalLabel, emojiFor, totalGoalFor, prettyDate, fmt, isEmail } from '@/lib/challenge';
 import type { Challenge } from '@/lib/types';
 import { INK, ARCHIVO, PAGE, card, btn, input, label } from '@/lib/ui';
 
@@ -35,9 +35,11 @@ export default function JoinChallenge({ challenge, squadSize }: { challenge: Cha
     }
   }, []);
 
+  const newUserReady = name.trim().length > 0 && isEmail(email);
+
   async function join(useToken: boolean) {
     if (busy) return;
-    if (!useToken && !name.trim()) return;
+    if (!useToken && !newUserReady) return;
     setBusy(true);
     setErr(null);
     try {
@@ -167,13 +169,15 @@ export default function JoinChallenge({ challenge, squadSize }: { challenge: Cha
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@email.com (optional)"
+            placeholder="you@email.com"
             type="email"
+            inputMode="email"
+            autoComplete="email"
             maxLength={120}
             style={{ ...input, marginBottom: 6 }}
           />
           <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.7, marginBottom: 16 }}>
-            So we can send you your link if you ever lose it.
+            We email you a link so you can get back in from any phone or laptop. This is how we know it is you.
           </div>
 
           <label style={label}>YOUR COLORS</label>
@@ -204,14 +208,14 @@ export default function JoinChallenge({ challenge, squadSize }: { challenge: Cha
 
           <button
             onClick={() => join(false)}
-            disabled={!name.trim() || busy}
+            disabled={!newUserReady || busy}
             className="nb"
             style={btn('#FF5DA2', {
               width: '100%',
               color: '#fff',
               fontSize: 18,
-              opacity: name.trim() && !busy ? 1 : 0.5,
-              cursor: name.trim() && !busy ? 'pointer' : 'not-allowed',
+              opacity: newUserReady && !busy ? 1 : 0.5,
+              cursor: newUserReady && !busy ? 'pointer' : 'not-allowed',
             })}
           >
             {busy ? 'JOINING…' : 'JOIN THE SQUAD 💥'}

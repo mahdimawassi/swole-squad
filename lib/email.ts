@@ -67,14 +67,12 @@ export async function sendAccessLink(opts: {
   return send(to, challengeName ? `You're in: ${challengeName} 💪` : 'Your Swole Squad link 💪', html);
 }
 
+export { isEmail } from './challenge';
+
 function escapeHtml(s: string): string {
   return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-export function isEmail(s: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s).trim());
 }

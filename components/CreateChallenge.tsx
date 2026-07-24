@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SwoleGuy from './SwoleGuy';
 import Header from './Header';
-import { PRESETS, AVATAR_COLORS, todayStr, addDays, prettyDate, fmt } from '@/lib/challenge';
+import { PRESETS, AVATAR_COLORS, todayStr, addDays, prettyDate, fmt, isEmail } from '@/lib/challenge';
 import type { GoalMode } from '@/lib/types';
 import { INK, ARCHIVO, PAGE, card, btn, chip, input, label } from '@/lib/ui';
 
@@ -83,9 +83,12 @@ export default function CreateChallenge() {
 
   const amountNum = Number(amount);
   const lengthOk = computedDays >= 1 && computedDays <= 365;
+  // Someone we already know is exempt: the in-app prompt collects their email.
+  const emailOk = Boolean(saved) || isEmail(email);
   const valid =
     activity.length > 0 &&
     myName.trim().length > 0 &&
+    emailOk &&
     Number.isFinite(amountNum) &&
     amountNum > 0 &&
     lengthOk;
@@ -324,15 +327,17 @@ export default function CreateChallenge() {
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@email.com (optional)"
+            placeholder="you@email.com"
             type="email"
+            inputMode="email"
+            autoComplete="email"
             maxLength={120}
             style={{ ...input, marginBottom: 6 }}
           />
           <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.7, marginBottom: 14 }}>
             {saved
-              ? 'Changing these updates your name and colour in every challenge you are in.'
-              : 'Only used to email you your access link so you can never lose it.'}
+              ? 'Changing these updates your name, email and colour everywhere.'
+              : 'We email you a link so you can get back in from any device. This is how we know it is you.'}
           </div>
 
           <label style={label}>YOUR COLORS</label>

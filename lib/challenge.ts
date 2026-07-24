@@ -237,6 +237,10 @@ export function normalizeCode(raw: string): string {
   return candidate.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
 }
 
+export function isEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s).trim());
+}
+
 export function isValidGoalMode(v: unknown): v is GoalMode {
   return v === 'daily' || v === 'total';
 }

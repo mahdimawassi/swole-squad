@@ -2,16 +2,19 @@ import { NextResponse } from 'next/server';
 import { getAdmin } from '@/lib/supabaseAdmin';
 import { getUserByToken, getChallengeById } from '@/lib/data';
 
-// Soft-remove someone from a challenge. Creator only.
-// Their logs stay in the database, they just drop off the board and can be re-added.
+// Two actions, both soft:
+//   "leave"  - take yourself out of a challenge
+//   "remove" - the creator takes someone else out
+// Either way the daily entries stay, so rejoining later restores them.
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const token = String(body?.token ?? '');
     const challengeId = String(body?.challenge_id ?? '');
+    const action = body?.action === 'leave' ? 'leave' : 'remove';
     const participantId = String(body?.participant_id ?? '');
 
-    if (!token || !challengeId || !participantId) {
+    if (!token || !challengeId) {
       return NextResponse.json({ error: 'Missing information.' }, { status: 400 });
     }
 
@@ -20,29 +23,52 @@ export async function POST(req: Request) {
 
     const challenge = await getChallengeById(challengeId);
     if (!challenge) return NextResponse.json({ error: 'Challenge not found.' }, { status: 404 });
-    if (challenge.created_by !== user.id) {
-      return NextResponse.json({ error: 'Only the challenge creator can remove people.' }, { status: 403 });
-    }
 
     const supabase = getAdmin();
-    const { data: target } = await supabase
-      .from('participants')
-      .select('id, user_id')
-      .eq('id', participantId)
-      .eq('challenge_id', challengeId)
-      .maybeSingle();
+    const isOwner = challenge.created_by === user.id;
+    let targetId: string;
 
-    if (!target) return NextResponse.json({ error: 'That person is not in this challenge.' }, { status: 404 });
-    if (target.user_id === user.id) {
-      return NextResponse.json({ error: 'You cannot remove yourself.' }, { status: 400 });
+    if (action === 'leave') {
+      // The creator cannot walk away and leave the challenge without an admin.
+      if (isOwner) {
+        return NextResponse.json(
+          { error: 'You created this challenge, so you cannot leave it. Delete it instead.' },
+          { status: 400 },
+        );
+      }
+      const { data: mine } = await supabase
+        .from('participants')
+        .select('id')
+        .eq('challenge_id', challengeId)
+        .eq('user_id', user.id)
+        .is('removed_at', null)
+        .maybeSingle();
+      if (!mine) return NextResponse.json({ error: 'You are not in this challenge.' }, { status: 404 });
+      targetId = mine.id;
+    } else {
+      if (!isOwner) {
+        return NextResponse.json({ error: 'Only the challenge creator can remove people.' }, { status: 403 });
+      }
+      if (!participantId) return NextResponse.json({ error: 'Missing information.' }, { status: 400 });
+      const { data: target } = await supabase
+        .from('participants')
+        .select('id, user_id')
+        .eq('id', participantId)
+        .eq('challenge_id', challengeId)
+        .maybeSingle();
+      if (!target) return NextResponse.json({ error: 'That person is not in this challenge.' }, { status: 404 });
+      if (target.user_id === user.id) {
+        return NextResponse.json({ error: 'You cannot remove yourself.' }, { status: 400 });
+      }
+      targetId = target.id;
     }
 
     const { error } = await supabase
       .from('participants')
       .update({ removed_at: new Date().toISOString() })
-      .eq('id', participantId);
+      .eq('id', targetId);
 
-    if (error) return NextResponse.json({ error: 'Could not remove them.' }, { status: 500 });
+    if (error) return NextResponse.json({ error: 'Could not save that.' }, { status: 500 });
 
     return NextResponse.json({ ok: true });
   } catch {

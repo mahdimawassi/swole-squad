@@ -54,6 +54,22 @@ Afterwards, open the surviving profile's `/me/<token>` link once on each of your
 
 ---
 
+## Accounts and challenge management
+
+**Email is required.** Anyone joining or creating for the first time must give one. It is the only thing that identifies a person across devices, and it is what stops the same person becoming two profiles when they open the link in Safari after first joining from inside WhatsApp.
+
+**People who joined before this** have no email on file. They get a prompt on their hub asking for one, and adding it emails them their access link, exactly like a first-time signup. The prompt can be dismissed so nobody is locked out mid-challenge, but it returns on the next visit until they add one.
+
+**Profile** lives at `/me/<token>/profile`, reachable by tapping your name in the header. Name, email and colour are editable, and they apply everywhere at once since one person is one profile. Changing the email sends the access link to the new address. An email already used by someone else is rejected.
+
+**Leaving a challenge** is available to anyone who did not create it, at the bottom of the Squad tab. It is soft: you drop off the leaderboard but your entries are kept, so rejoining with the code restores them.
+
+**Deleting a challenge** is available only to its creator, in the same place. It is permanent and takes every entry logged in it. Members' profiles and their other challenges are untouched.
+
+The creator cannot leave their own challenge, only delete it, so a challenge is never left without an admin. If you want out but the others want to keep going, hand the code over and let someone else recreate it.
+
+---
+
 ## Environment variables
 
 In Vercel → your project → **Settings → Environment Variables**:

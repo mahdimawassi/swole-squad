@@ -10,10 +10,12 @@ export default function Header({
   badge,
   sub,
   back,
+  badgeHref,
 }: {
   badge?: string;
   sub?: string;
   back?: string | boolean;
+  badgeHref?: string;
 }) {
   const router = useRouter();
   const [home, setHome] = useState('/');
@@ -79,7 +81,30 @@ export default function Header({
         >
           🏋️ SWOLE SQUAD
         </button>
-        {badge && <div style={{ ...pill, flexShrink: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{badge}</div>}
+        {badge &&
+          (badgeHref ? (
+            <button
+              onClick={() => router.push(badgeHref)}
+              className="nb"
+              style={{
+                ...pill,
+                flexShrink: 0,
+                maxWidth: 160,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                border: `2px solid ${INK}`,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {badge} ⚙️
+            </button>
+          ) : (
+            <div style={{ ...pill, flexShrink: 0, maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {badge}
+            </div>
+          ))}
       </div>
       {sub && <div style={{ fontWeight: 700, fontSize: 13, opacity: 0.75, marginTop: 6 }}>{sub}</div>}
     </div>

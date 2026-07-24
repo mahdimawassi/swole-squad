@@ -37,6 +37,7 @@ export async function POST(req: Request) {
     const creatorColor = AVATAR_COLORS.some((c) => c.hex === body?.creator?.avatar_color)
       ? String(body.creator.avatar_color)
       : AVATAR_COLORS[0].hex;
+    const bodyTokenRaw = body?.creator?.token ? String(body.creator.token) : '';
 
     if (!activity) return NextResponse.json({ error: 'Pick an activity.' }, { status: 400 });
     if (!creatorName) return NextResponse.json({ error: 'Enter your name.' }, { status: 400 });
@@ -51,6 +52,12 @@ export async function POST(req: Request) {
     if (creatorEmailRaw && !isEmail(creatorEmailRaw)) {
       return NextResponse.json({ error: 'That email looks off.' }, { status: 400 });
     }
+    // Email is the only thing that identifies you across devices, so a brand new
+    // person must supply one. Someone we already know (token) is exempt: the
+    // in-app prompt collects theirs instead of blocking them here.
+    if (!bodyTokenRaw && !creatorEmailRaw) {
+      return NextResponse.json({ error: 'Enter your email.' }, { status: 400 });
+    }
 
     const supabase = getAdmin();
 
@@ -58,8 +65,7 @@ export async function POST(req: Request) {
     // first by the token saved on their device, then by email. Only a genuinely
     // new person gets a new row.
     let user = null;
-    const bodyToken = body?.creator?.token ? String(body.creator.token) : '';
-    if (bodyToken) user = await getUserByToken(bodyToken);
+    if (bodyTokenRaw) user = await getUserByToken(bodyTokenRaw);
     if (!user && creatorEmailRaw) user = await getUserByEmail(creatorEmailRaw);
 
     if (user) {
@@ -134,6 +140,43 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ token: user.secret_token, invite_code: challenge.invite_code, id: challenge.id });
+  } catch {
+    return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
+  }
+}
+
+
+// DELETE /api/challenge -> the creator wipes a challenge and everything in it.
+// participants and logs are removed by the foreign keys' ON DELETE CASCADE.
+export async function DELETE(req: Request) {
+  try {
+    const body = await req.json();
+    const token = String(body?.token ?? '');
+    const challengeId = String(body?.challenge_id ?? '');
+
+    if (!token || !challengeId) {
+      return NextResponse.json({ error: 'Missing information.' }, { status: 400 });
+    }
+
+    const user = await getUserByToken(token);
+    if (!user) return NextResponse.json({ error: 'We could not find you.' }, { status: 404 });
+
+    const supabase = getAdmin();
+    const { data: challenge } = await supabase
+      .from('challenges')
+      .select('id, created_by')
+      .eq('id', challengeId)
+      .maybeSingle();
+
+    if (!challenge) return NextResponse.json({ error: 'Challenge not found.' }, { status: 404 });
+    if (challenge.created_by !== user.id) {
+      return NextResponse.json({ error: 'Only the creator can delete this challenge.' }, { status: 403 });
+    }
+
+    const { error } = await supabase.from('challenges').delete().eq('id', challengeId);
+    if (error) return NextResponse.json({ error: 'Could not delete it.' }, { status: 500 });
+
+    return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
   }

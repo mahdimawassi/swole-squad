@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SwoleGuy from './SwoleGuy';
 import Header from './Header';
+import EmailGate from './EmailGate';
 import {
   getSwole,
   totalGoalFor,
@@ -118,8 +119,11 @@ export default function Hub({
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '18px 14px 110px' }}>
+      {!user.email && <EmailGate token={user.secret_token} name={user.name} />}
+
       <Header
         badge={user.name.toUpperCase()}
+        badgeHref={`/me/${user.secret_token}/profile`}
         sub={
           needsToday > 0
             ? `${needsToday} challenge${needsToday === 1 ? '' : 's'} still need you today 👀`

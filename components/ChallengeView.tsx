@@ -48,6 +48,7 @@ export default function ChallengeView({
   const [toast, setToast] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [confirmExit, setConfirmExit] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -160,6 +161,39 @@ export default function ChallengeView({
     } finally {
       setConfirmRemove(null);
       setBusy(false);
+    }
+  }
+
+  // Non-creators leave; the creator deletes. Leaving keeps your entries in case
+  // you rejoin. Deleting removes the challenge and everyone's history with it.
+  async function exitChallenge() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = isAdmin
+        ? await fetch('/api/challenge', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: user.secret_token, challenge_id: challenge.id }),
+          })
+        : await fetch('/api/participant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: user.secret_token, challenge_id: challenge.id, action: 'leave' }),
+          });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data?.error || 'Could not do that.');
+        setBusy(false);
+        setConfirmExit(false);
+        return;
+      }
+      router.push(`/me/${user.secret_token}`);
+      router.refresh();
+    } catch {
+      showToast('Network error.');
+      setBusy(false);
+      setConfirmExit(false);
     }
   }
 
@@ -530,6 +564,40 @@ export default function ChallengeView({
               </div>
             </div>
           )}
+
+          <div style={{ ...card, borderColor: '#C21F3A', boxShadow: '6px 6px 0 #C21F3A' }}>
+            <div style={{ fontFamily: ARCHIVO, fontSize: 15, marginBottom: 6 }}>
+              {isAdmin ? 'DELETE THIS CHALLENGE' : 'LEAVE THIS CHALLENGE'}
+            </div>
+            <p style={{ fontSize: 12, fontWeight: 600, opacity: 0.8, marginTop: 0, marginBottom: 12 }}>
+              {isAdmin
+                ? 'Wipes the challenge for everyone, along with every entry logged in it. This cannot be undone.'
+                : 'You drop off the leaderboard. Your entries are kept, so rejoining with the code brings them back.'}
+            </p>
+            {confirmExit ? (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={exitChallenge}
+                  disabled={busy}
+                  className="nb"
+                  style={btn('#C21F3A', { flex: 1, color: '#fff', fontSize: 14, opacity: busy ? 0.6 : 1 })}
+                >
+                  {busy ? '…' : isAdmin ? 'Yes, delete it all' : 'Yes, I am out'}
+                </button>
+                <button onClick={() => setConfirmExit(false)} className="nb" style={btn('#fff', { flex: 1, fontSize: 14 })}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmExit(true)}
+                className="nb"
+                style={btn('#fff', { width: '100%', fontSize: 14, color: '#C21F3A' })}
+              >
+                {isAdmin ? '🗑️ Delete challenge' : '🚪 Leave challenge'}
+              </button>
+            )}
+          </div>
         </>
       )}
 

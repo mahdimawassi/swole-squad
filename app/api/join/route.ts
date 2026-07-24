@@ -22,6 +22,11 @@ export async function POST(req: Request) {
       ? String(body.avatar_color)
       : AVATAR_COLORS[0].hex;
 
+    // Reject a malformed email before touching the database.
+    if (email && !isEmail(email)) {
+      return NextResponse.json({ error: 'That email looks off.' }, { status: 400 });
+    }
+
     const challenge = await getChallengeByCode(code);
     if (!challenge) return NextResponse.json({ error: 'That challenge was not found.' }, { status: 404 });
 
@@ -47,7 +52,10 @@ export async function POST(req: Request) {
     // 3. Brand new person.
     if (!user) {
       if (!name) return NextResponse.json({ error: 'Enter a name.' }, { status: 400 });
-      if (email && !isEmail(email)) return NextResponse.json({ error: 'That email looks off.' }, { status: 400 });
+      // A new person must give an email. It is what lets them get back in from
+      // another phone or browser instead of accidentally creating a second profile.
+      if (!email) return NextResponse.json({ error: 'Enter your email.' }, { status: 400 });
+      if (!isEmail(email)) return NextResponse.json({ error: 'That email looks off.' }, { status: 400 });
       const { data: created, error } = await supabase
         .from('users')
         .insert({ name, avatar_color: color, email: email || null })
