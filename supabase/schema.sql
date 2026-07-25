@@ -91,3 +91,21 @@ begin
   end if;
 end;
 $$;
+
+-- ---------- feedback survey ----------
+create table if not exists feedback (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid references users(id) on delete set null,
+  name           text not null,
+  keep_using     int  check (keep_using between 1 and 5),
+  disappointment text check (disappointment in ('very', 'somewhat', 'not')),
+  ease           int  check (ease between 1 and 5),
+  confusing      text,
+  broken         text,
+  favorite       text,
+  next_thing     text,
+  other          text,
+  created_at     timestamptz not null default now()
+);
+create index if not exists idx_feedback_user on feedback(user_id);
+alter table feedback enable row level security;
