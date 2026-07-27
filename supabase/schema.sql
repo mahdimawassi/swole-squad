@@ -109,3 +109,55 @@ create table if not exists feedback (
 );
 create index if not exists idx_feedback_user on feedback(user_id);
 alter table feedback enable row level security;
+
+-- ---------- v3: sharing toggle, message board, reactions, reminders ----------
+alter table challenges add column if not exists sharing_enabled boolean not null default true;
+alter table users add column if not exists reminders_opt_out boolean not null default false;
+
+create table if not exists messages (
+  id uuid primary key default gen_random_uuid(),
+  challenge_id uuid not null references challenges(id) on delete cascade,
+  user_id uuid not null references users(id) on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_messages_challenge on messages(challenge_id, created_at);
+
+create table if not exists reactions (
+  id uuid primary key default gen_random_uuid(),
+  challenge_id uuid not null references challenges(id) on delete cascade,
+  to_user uuid not null references users(id) on delete cascade,
+  from_user uuid not null references users(id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  unique (challenge_id, to_user, from_user, emoji)
+);
+create index if not exists idx_reactions_challenge_to on reactions(challenge_id, to_user);
+
+create table if not exists reminder_log (
+  participant_id uuid not null references participants(id) on delete cascade,
+  day_date date not null,
+  sent_at timestamptz not null default now(),
+  primary key (participant_id, day_date)
+);
+
+alter table messages enable row level security;
+alter table reactions enable row level security;
+alter table reminder_log enable row level security;
+
+create or replace function toggle_reaction(p_challenge uuid, p_to uuid, p_from uuid, p_emoji text)
+returns boolean language plpgsql as $$
+declare v_existing uuid;
+begin
+  select id into v_existing from reactions
+  where challenge_id = p_challenge and to_user = p_to and from_user = p_from and emoji = p_emoji;
+  if v_existing is not null then
+    delete from reactions where id = v_existing;
+    return false;
+  else
+    insert into reactions (challenge_id, to_user, from_user, emoji)
+    values (p_challenge, p_to, p_from, p_emoji);
+    return true;
+  end if;
+end; $$;
+alter table users add column if not exists avatar_style text not null default 'classic';

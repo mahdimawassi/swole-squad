@@ -36,6 +36,7 @@ export async function POST(req: Request) {
     // 1. Already known on this device: straight in, no questions.
     let user = token ? await getUserByToken(token) : null;
     let emailedInstead = false;
+    let isNewUser = false;
 
     // 2. Otherwise, match on email so one person stays one user.
     if (!user && email) {
@@ -63,11 +64,14 @@ export async function POST(req: Request) {
         .single();
       if (error || !created) return NextResponse.json({ error: 'Could not create your profile.' }, { status: 500 });
       user = created;
+      isNewUser = true;
     }
 
     if (!user) return NextResponse.json({ error: 'Could not create your profile.' }, { status: 500 });
 
     // Add them to the challenge, or un-remove them if they were kicked before.
+    // joinedNow tracks whether their membership actually changed on THIS request.
+    let joinedNow = false;
     const { data: existingRow } = await supabase
       .from('participants')
       .select('id, removed_at')
@@ -75,20 +79,35 @@ export async function POST(req: Request) {
       .eq('user_id', user.id)
       .maybeSingle();
 
+    // When the creator has turned sharing off, existing members still get in,
+    // but nobody new (and nobody previously removed) can join.
+    const alreadyActiveMember = Boolean(existingRow && !existingRow.removed_at);
+    if (challenge.sharing_enabled === false && !alreadyActiveMember) {
+      return NextResponse.json(
+        { error: 'This challenge is locked. Ask the creator to turn sharing back on.' },
+        { status: 403 },
+      );
+    }
+
     if (existingRow) {
       if (existingRow.removed_at) {
         await supabase.from('participants').update({ removed_at: null }).eq('id', existingRow.id);
+        joinedNow = true; // rejoining after being removed counts as a fresh join
       }
+      // Already an active member re-opening the link: nothing changed, no email.
     } else {
       const { error: pErr } = await supabase
         .from('participants')
         .insert({ challenge_id: challenge.id, user_id: user.id });
       if (pErr) return NextResponse.json({ error: 'Could not add you to the challenge.' }, { status: 500 });
+      joinedNow = true;
     }
 
     const link = `${origin}/me/${user.secret_token}`;
 
-    if (user.email) {
+    // Only email when there is a real reason to: a brand new person, or a genuine
+    // new membership. An existing member simply opening their link gets nothing.
+    if (user.email && (isNewUser || joinedNow)) {
       await sendAccessLink({
         to: user.email,
         name: user.name,

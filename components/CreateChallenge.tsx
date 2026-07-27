@@ -138,7 +138,6 @@ export default function CreateChallenge() {
         // ignore
       }
       router.push(`/me/${data.token}?new=${data.invite_code}`);
-      router.refresh();
     } catch {
       setErr('Network error. Try again.');
       setBusy(false);

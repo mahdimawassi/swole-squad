@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdmin } from '@/lib/supabaseAdmin';
 import { getUserByToken, getUserByEmail } from '@/lib/data';
 import { AVATAR_COLORS, isEmail } from '@/lib/challenge';
+import { AVATAR_KEYS } from '@/components/SwoleGuy';
 import { sendAccessLink } from '@/lib/email';
 
 // Update your own profile: name, email, avatar colour.
@@ -15,6 +16,7 @@ export async function POST(req: Request) {
     // Check the shape of the input first, so bad data never costs a database call.
     const nextName = body?.name !== undefined ? String(body.name).trim().slice(0, 40) : undefined;
     const nextColor = body?.avatar_color !== undefined ? String(body.avatar_color) : undefined;
+    const nextStyle = body?.avatar_style !== undefined ? String(body.avatar_style) : undefined;
     const nextEmail = body?.email !== undefined ? String(body.email).trim().toLowerCase() : undefined;
 
     if (nextName !== undefined && !nextName) {
@@ -23,6 +25,9 @@ export async function POST(req: Request) {
     if (nextColor !== undefined && !AVATAR_COLORS.some((c) => c.hex === nextColor)) {
       return NextResponse.json({ error: 'Pick one of the offered colours.' }, { status: 400 });
     }
+    if (nextStyle !== undefined && !AVATAR_KEYS.includes(nextStyle)) {
+      return NextResponse.json({ error: 'Pick one of the offered avatars.' }, { status: 400 });
+    }
     if (nextEmail !== undefined && !isEmail(nextEmail)) {
       return NextResponse.json({ error: 'That email looks off.' }, { status: 400 });
     }
@@ -30,10 +35,11 @@ export async function POST(req: Request) {
     const user = await getUserByToken(token);
     if (!user) return NextResponse.json({ error: 'We could not find you.' }, { status: 404 });
 
-    const patch: Record<string, string> = {};
+    const patch: Record<string, string | boolean> = {};
 
     if (nextName !== undefined && nextName !== user.name) patch.name = nextName;
     if (nextColor !== undefined && nextColor !== user.avatar_color) patch.avatar_color = nextColor;
+    if (nextStyle !== undefined && nextStyle !== (user.avatar_style ?? 'classic')) patch.avatar_style = nextStyle;
 
     let emailChanged = false;
     if (nextEmail !== undefined) {
@@ -49,6 +55,11 @@ export async function POST(req: Request) {
         patch.email = email;
         emailChanged = true;
       }
+    }
+
+    if (body?.reminders_opt_out !== undefined) {
+      const val = Boolean(body.reminders_opt_out);
+      if (val !== (user.reminders_opt_out === true)) patch.reminders_opt_out = val;
     }
 
     if (Object.keys(patch).length === 0) {

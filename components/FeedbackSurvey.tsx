@@ -118,7 +118,7 @@ export default function FeedbackSurvey() {
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <SwoleGuy total={100} totalGoal={100} color="#FF5DA2" size={150} flexing />
           </div>
-          <div style={{ fontFamily: ARCHIVO, fontSize: 24, marginTop: 6 }}>SWOLE GOD</div>
+          <div style={{ fontFamily: ARCHIVO, fontSize: 24, marginTop: 6 }}>MAXED OUT</div>
           <p style={{ fontWeight: 600, fontSize: 15, margin: '8px 0 0' }}>
             Feedback logged. This is exactly what makes the app better, so thank you.
           </p>

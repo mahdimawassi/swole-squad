@@ -1,24 +1,16 @@
 import ChallengeView from '@/components/ChallengeView';
 import Notice from '@/components/Notice';
-import { getUserByToken, getChallengeById, getMembers, getLogsFor } from '@/lib/data';
+import { getUserByToken, getChallengeById, getMembers, getLogsFor, getMessages, getReactions } from '@/lib/data';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ChallengePage({
-  params,
-}: {
-  params: Promise<{ token: string; cid: string }>;
-}) {
+export default async function ChallengePage({ params }: { params: Promise<{ token: string; cid: string }> }) {
   const { token, cid } = await params;
 
   const user = await getUserByToken(token);
   if (!user) {
     return (
-      <Notice
-        title="We can’t find your spot"
-        body="This link may be broken. Try your invite link again."
-        reset
-      />
+      <Notice title="We can’t find your spot" body="This link may be broken. Try your invite link again." reset />
     );
   }
 
@@ -38,7 +30,11 @@ export default async function ChallengePage({
     );
   }
 
-  const logs = await getLogsFor(members.map((m) => m.participant_id));
+  const [logs, messages, reactions] = await Promise.all([
+    getLogsFor(members.map((m) => m.participant_id)),
+    getMessages(challenge.id),
+    getReactions(challenge.id, user.id),
+  ]);
 
   return (
     <ChallengeView
@@ -46,6 +42,8 @@ export default async function ChallengePage({
       challenge={challenge}
       members={members}
       logs={logs}
+      messages={messages}
+      reactions={reactions}
       myParticipantId={me.participant_id}
     />
   );

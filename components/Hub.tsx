@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import SwoleGuy from './SwoleGuy';
 import Header from './Header';
 import EmailGate from './EmailGate';
+import { usePrefetch } from './Nav';
 import {
   getSwole,
   totalGoalFor,
@@ -14,6 +15,9 @@ import {
   phaseOf,
   challengeDay,
   paceFor,
+  metToday,
+  goalReached,
+  needsYouToday,
   todayStr,
   fmt,
   clamp,
@@ -61,7 +65,7 @@ export default function Hub({
     if (!today) return entries;
     const rank = (e: HubEntry) => {
       const ph = phaseOf(e.challenge, today);
-      if (ph === 'active' && e.today <= 0) return 0; // needs you today
+      if (needsYouToday(e.challenge, e.today, e.total, today)) return 0; // still owes today
       if (ph === 'active') return 1;
       if (ph === 'upcoming') return 2;
       return 3;
@@ -70,7 +74,7 @@ export default function Hub({
   }, [entries, today]);
 
   const needsToday = today
-    ? entries.filter((e) => phaseOf(e.challenge, today) === 'active' && e.today <= 0).length
+    ? entries.filter((e) => needsYouToday(e.challenge, e.today, e.total, today)).length
     : 0;
 
   const newChallenge = justCreated
@@ -116,6 +120,13 @@ export default function Hub({
   }
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
+
+  usePrefetch([
+    '/new',
+    '/join',
+    `/me/${user.secret_token}/profile`,
+    ...entries.map((e) => `/me/${user.secret_token}/c/${e.challenge.id}`),
+  ]);
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '18px 14px 110px' }}>
@@ -206,7 +217,7 @@ export default function Hub({
       {entries.length === 0 && (
         <div style={{ ...card, textAlign: 'center' }}>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <SwoleGuy total={0} totalGoal={100} color={user.avatar_color} size={110} />
+            <SwoleGuy total={0} totalGoal={100} color={user.avatar_color} size={110} style={user.avatar_style} />
           </div>
           <div style={{ fontFamily: ARCHIVO, fontSize: 19, marginTop: 6 }}>NOTHING GOING ON</div>
           <p style={{ fontWeight: 600, fontSize: 13, marginTop: 6, marginBottom: 0 }}>
@@ -222,7 +233,8 @@ export default function Hub({
         const ph = today ? phaseOf(c, today) : 'active';
         const day = today ? clamp(challengeDay(c, today), 0, c.duration_days) : 0;
         const pace = today ? paceFor(c, e.total, today) : null;
-        const doneToday = e.today > 0;
+        const finishedGoal = goalReached(c, e.total);
+        const doneToday = metToday(c, e.today, e.total);
         const target = dailyTarget(c);
         const open = () => router.push(`/me/${user.secret_token}/c/${c.id}`);
 
@@ -267,13 +279,21 @@ export default function Hub({
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {ph === 'upcoming' ? 'SOON' : ph === 'done' ? 'DONE' : doneToday ? '✅ TODAY' : `DAY ${day}`}
+                    {ph === 'upcoming'
+                      ? 'SOON'
+                      : ph === 'done'
+                        ? 'DONE'
+                        : finishedGoal
+                          ? '🏆 GOAL MET'
+                          : doneToday
+                            ? '✅ TODAY'
+                            : `DAY ${day}`}
                   </div>
                 )}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <SwoleGuy total={e.total} totalGoal={goal} color={user.avatar_color} size={62} />
+                <SwoleGuy total={e.total} totalGoal={goal} color={user.avatar_color} size={62} style={user.avatar_style} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800, marginBottom: 4 }}>
                     <span>{lv.title}</span>
@@ -319,7 +339,7 @@ export default function Hub({
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              {ph === 'active' && (
+              {ph === 'active' && !finishedGoal && (
                 <button
                   onClick={() => quickLog(e)}
                   disabled={busyId === c.id}
@@ -331,10 +351,10 @@ export default function Hub({
                     opacity: busyId === c.id ? 0.6 : 1,
                   })}
                 >
-                  {busyId === c.id ? '…' : `+${fmt(target)} ${c.unit_label}`}
+                  {busyId === c.id ? '…' : doneToday ? `Add more (+${fmt(target)})` : `+${fmt(target)} ${c.unit_label}`}
                 </button>
               )}
-              <button onClick={open} className="nb" style={btn('#fff', { flex: ph === 'active' ? 0.8 : 1, fontSize: 15 })}>
+              <button onClick={open} className="nb" style={btn('#fff', { flex: ph === 'active' && !finishedGoal ? 0.8 : 1, fontSize: 15 })}>
                 Open →
               </button>
             </div>

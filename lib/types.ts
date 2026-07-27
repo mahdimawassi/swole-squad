@@ -5,7 +5,9 @@ export type User = {
   email: string | null;
   name: string;
   avatar_color: string;
+  avatar_style?: string;
   secret_token: string;
+  reminders_opt_out?: boolean;
   created_at?: string;
 };
 
@@ -21,6 +23,7 @@ export type Challenge = {
   end_date: string; // YYYY-MM-DD
   invite_code: string;
   created_by: string | null;
+  sharing_enabled?: boolean;
   created_at?: string;
 };
 
@@ -29,6 +32,7 @@ export type Member = {
   user_id: string;
   name: string;
   avatar_color: string;
+  avatar_style?: string;
   joined_at?: string;
 };
 
@@ -56,3 +60,15 @@ export type HubEntry = {
   rank: number;
   squadSize: number;
 };
+
+export type Message = {
+  id: string;
+  user_id: string;
+  name: string;
+  avatar_color: string;
+  body: string;
+  created_at: string;
+};
+
+// emoji -> { count, mine } for one person in a challenge
+export type ReactionSummary = Record<string, { count: number; mine: boolean }>;

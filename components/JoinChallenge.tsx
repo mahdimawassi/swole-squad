@@ -123,7 +123,7 @@ export default function JoinChallenge({ challenge, squadSize }: { challenge: Cha
         <p style={{ fontWeight: 600, fontSize: 13, marginTop: 12, marginBottom: 0 }}>
           {challenge.duration_days} days · {prettyDate(challenge.start_date)} to {prettyDate(challenge.end_date)}
           <br />
-          {fmt(goal)} {challenge.unit_label} gets you to SWOLE GOD.
+          {fmt(goal)} {challenge.unit_label} gets you to MAXED OUT.
         </p>
       </div>
 

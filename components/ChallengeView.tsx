@@ -4,9 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SwoleGuy from './SwoleGuy';
 import Header from './Header';
+import { usePrefetch } from './Nav';
 import {
   computeStats,
   getSwole,
+  REACTION_EMOJIS,
   totalGoalFor,
   dailyTarget,
   goalLabel,
@@ -22,7 +24,7 @@ import {
   fmt,
   clamp,
 } from '@/lib/challenge';
-import type { User, Challenge, Member, LogRow } from '@/lib/types';
+import type { User, Challenge, Member, LogRow, Message, ReactionSummary } from '@/lib/types';
 import { INK, ARCHIVO, PAGE, card, btn, barOuter, input } from '@/lib/ui';
 
 export default function ChallengeView({
@@ -30,16 +32,20 @@ export default function ChallengeView({
   challenge,
   members,
   logs,
+  messages,
+  reactions,
   myParticipantId,
 }: {
   user: User;
   challenge: Challenge;
   members: Member[];
   logs: LogRow[];
+  messages: Message[];
+  reactions: Record<string, ReactionSummary>;
   myParticipantId: string;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<'me' | 'squad'>('me');
+  const [tab, setTab] = useState<'me' | 'squad' | 'chat'>('me');
   const [today, setToday] = useState('');
   const [day, setDay] = useState('');
   const [amount, setAmount] = useState('');
@@ -49,6 +55,10 @@ export default function ChallengeView({
   const [copied, setCopied] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [openReactions, setOpenReactions] = useState<string | null>(null);
+  const [reactingBusy, setReactingBusy] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -189,11 +199,53 @@ export default function ChallengeView({
         return;
       }
       router.push(`/me/${user.secret_token}`);
-      router.refresh();
     } catch {
       showToast('Network error.');
       setBusy(false);
       setConfirmExit(false);
+    }
+  }
+
+  async function postMessage() {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      const res = await fetch('/api/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: user.secret_token, challenge_id: challenge.id, body: text }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data?.error || 'Could not post.');
+      } else {
+        setDraft('');
+        router.refresh();
+      }
+    } catch {
+      showToast('Network error.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function react(toUserId: string, emoji: string) {
+    if (reactingBusy) return;
+    setReactingBusy(true);
+    try {
+      const res = await fetch('/api/reaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: user.secret_token, challenge_id: challenge.id, to_user: toUserId, emoji }),
+      });
+      const data = await res.json();
+      if (!res.ok) showToast(data?.error || 'Could not react.');
+      else router.refresh();
+    } catch {
+      showToast('Network error.');
+    } finally {
+      setReactingBusy(false);
     }
   }
 
@@ -209,6 +261,8 @@ export default function ChallengeView({
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const inviteUrl = `${origin}/join/${challenge.invite_code}`;
+
+  usePrefetch([`/me/${user.secret_token}`, `/me/${user.secret_token}/profile`]);
 
   let headline = `⚡ ${challenge.duration_days - cDay} DAYS LEFT`;
   if (today) {
@@ -229,28 +283,45 @@ export default function ChallengeView({
         back={`/me/${user.secret_token}`}
       />
 
-      <div
-        style={{
-          fontFamily: ARCHIVO,
-          fontSize: 20,
-          marginBottom: 14,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {challenge.name}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <div
+          style={{
+            fontFamily: ARCHIVO,
+            fontSize: 20,
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {challenge.name}
+        </div>
+        {isAdmin && (
+          <button
+            onClick={() => router.push(`/me/${user.secret_token}/c/${challenge.id}/admin`)}
+            className="nb"
+            aria-label="Challenge settings"
+            style={btn('#fff', { padding: '9px 12px', fontSize: 15 })}
+          >
+            ⚙️
+          </button>
+        )}
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        {(['me', 'squad'] as const).map((k) => (
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {([
+          ['me', 'MY GAINS'],
+          ['squad', `SQUAD (${members.length})`],
+          ['chat', messages.length ? `CHAT (${messages.length})` : 'CHAT'],
+        ] as const).map(([k, labelText]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
             className="nb"
-            style={btn(tab === k ? '#4D7CFF' : '#fff', { flex: 1, color: tab === k ? '#fff' : INK })}
+            style={btn(tab === k ? '#4D7CFF' : '#fff', { flex: 1, color: tab === k ? '#fff' : INK, fontSize: 13, padding: '13px 6px' })}
           >
-            {k === 'me' ? 'MY GAINS' : `THE SQUAD (${members.length})`}
+            {labelText}
           </button>
         ))}
       </div>
@@ -259,7 +330,7 @@ export default function ChallengeView({
         <>
           <div style={{ ...card, textAlign: 'center' }}>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <SwoleGuy total={myTotal} totalGoal={goal} color={user.avatar_color} size={185} flexing={flexing} />
+              <SwoleGuy total={myTotal} totalGoal={goal} color={user.avatar_color} size={185} flexing={flexing} style={user.avatar_style} />
             </div>
             <div style={{ fontFamily: ARCHIVO, fontSize: 23, marginTop: 6 }}>{user.name.toUpperCase()}</div>
             <div
@@ -280,7 +351,7 @@ export default function ChallengeView({
               <Bar pct={level.pct} color={user.avatar_color} />
             </div>
             <div style={{ fontWeight: 800, fontSize: 13 }}>
-              {fmt(myTotal)} / {fmt(goal)} {challenge.unit_label} to SWOLE GOD
+              {fmt(myTotal)} / {fmt(goal)} {challenge.unit_label} to MAXED OUT
             </div>
           </div>
 
@@ -419,7 +490,7 @@ export default function ChallengeView({
               {[0, 0.25, 0.5, 0.75, 1].map((frac, i) => (
                 <div key={i} style={{ textAlign: 'center', flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <SwoleGuy total={frac * goal} totalGoal={goal} color={user.avatar_color} size={58} />
+                    <SwoleGuy total={frac * goal} totalGoal={goal} color={user.avatar_color} size={58} style={user.avatar_style} />
                   </div>
                   <div style={{ fontSize: 10, fontWeight: 800, marginTop: 2 }}>{Math.round(frac * 100)}%</div>
                 </div>
@@ -468,7 +539,7 @@ export default function ChallengeView({
                   <div style={{ fontFamily: ARCHIVO, fontSize: 19, width: 32, textAlign: 'center' }}>
                     {i === 0 ? '👑' : `#${i + 1}`}
                   </div>
-                  <SwoleGuy total={s.total} totalGoal={goal} color={s.member.avatar_color} size={52} />
+                  <SwoleGuy total={s.total} totalGoal={goal} color={s.member.avatar_color} size={52} style={s.member.avatar_style} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: ARCHIVO, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {s.member.name}
@@ -484,6 +555,16 @@ export default function ChallengeView({
                     <div style={{ fontSize: 11, fontWeight: 800 }}>{today ? (s.today > 0 ? '✅' : '⏳') : ''}</div>
                   </div>
                 </div>
+
+                <ReactionRow
+                  summary={reactions[s.member.user_id]}
+                  open={openReactions === s.member.user_id}
+                  disabled={reactingBusy}
+                  onToggleOpen={() =>
+                    setOpenReactions(openReactions === s.member.user_id ? null : s.member.user_id)
+                  }
+                  onReact={(emoji) => react(s.member.user_id, emoji)}
+                />
 
                 {canRemove && (
                   <div style={{ marginTop: 10, textAlign: 'right' }}>
@@ -601,6 +682,94 @@ export default function ChallengeView({
         </>
       )}
 
+      {tab === 'chat' && (
+        <>
+          <div style={{ ...card, padding: 14 }}>
+            <div style={{ fontFamily: ARCHIVO, fontSize: 15, marginBottom: 4 }}>THE GROUP CHAT</div>
+            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.7 }}>
+              Talk trash, cheer each other on. Everyone in the challenge sees this.
+            </div>
+          </div>
+
+          {messages.length === 0 && (
+            <div style={{ ...card, textAlign: 'center', padding: 22 }}>
+              <div style={{ fontSize: 30 }}>💬</div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginTop: 6 }}>No messages yet. Break the ice.</div>
+            </div>
+          )}
+
+          {messages.map((m) => {
+            const mine = m.user_id === user.id;
+            return (
+              <div
+                key={m.id}
+                style={{
+                  display: 'flex',
+                  flexDirection: mine ? 'row-reverse' : 'row',
+                  gap: 8,
+                  marginBottom: 10,
+                  alignItems: 'flex-end',
+                }}
+              >
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 999,
+                    background: m.avatar_color,
+                    border: `2px solid ${INK}`,
+                    flexShrink: 0,
+                    marginBottom: 4,
+                  }}
+                />
+                <div style={{ maxWidth: '78%' }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.65, margin: mine ? '0 2px 2px 0' : '0 0 2px 2px', textAlign: mine ? 'right' : 'left' }}>
+                    {mine ? 'You' : m.name}
+                  </div>
+                  <div
+                    style={{
+                      background: mine ? '#4D7CFF' : '#fff',
+                      color: mine ? '#fff' : INK,
+                      border: `3px solid ${INK}`,
+                      borderRadius: 14,
+                      boxShadow: `3px 3px 0 ${INK}`,
+                      padding: '9px 12px',
+                      fontWeight: 600,
+                      fontSize: 14,
+                      wordBreak: 'break-word',
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {m.body}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, position: 'sticky', bottom: 8 }}>
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') postMessage();
+              }}
+              placeholder="Say something…"
+              maxLength={500}
+              style={{ ...input, flex: 1 }}
+            />
+            <button
+              onClick={postMessage}
+              disabled={sending || !draft.trim()}
+              className="nb"
+              style={btn('#FF5DA2', { color: '#fff', opacity: sending || !draft.trim() ? 0.5 : 1 })}
+            >
+              SEND
+            </button>
+          </div>
+        </>
+      )}
+
       {toast && (
         <div
           className="toast"
@@ -643,6 +812,92 @@ function Stat({ emoji, label, value }: { emoji: string; label: string; value: st
       <div style={{ fontSize: 11, fontWeight: 800, marginTop: 3 }}>
         {emoji} {label}
       </div>
+    </div>
+  );
+}
+
+
+function ReactionRow({
+  summary,
+  open,
+  disabled,
+  onToggleOpen,
+  onReact,
+}: {
+  summary: ReactionSummary | undefined;
+  open: boolean;
+  disabled: boolean;
+  onToggleOpen: () => void;
+  onReact: (emoji: string) => void;
+}) {
+  const active = summary ? Object.entries(summary).filter(([, v]) => v.count > 0) : [];
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+      {active.map(([emoji, v]) => (
+        <button
+          key={emoji}
+          onClick={() => onReact(emoji)}
+          disabled={disabled}
+          className="nb"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            background: v.mine ? '#FFF3B0' : '#fff',
+            border: `2px solid ${INK}`,
+            borderRadius: 999,
+            padding: '3px 9px',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            color: INK,
+          }}
+        >
+          <span>{emoji}</span>
+          <span>{v.count}</span>
+        </button>
+      ))}
+
+      {open ? (
+        <div style={{ display: 'inline-flex', gap: 4, background: '#fff', border: `2px solid ${INK}`, borderRadius: 999, padding: '2px 6px' }}>
+          {REACTION_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              onClick={() => {
+                onReact(emoji);
+                onToggleOpen();
+              }}
+              disabled={disabled}
+              style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', padding: '2px 2px', lineHeight: 1 }}
+              aria-label={`React ${emoji}`}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <button
+          onClick={onToggleOpen}
+          className="nb"
+          style={{
+            background: '#fff',
+            border: `2px solid ${INK}`,
+            borderRadius: 999,
+            width: 28,
+            height: 24,
+            fontSize: 14,
+            fontWeight: 900,
+            cursor: 'pointer',
+            color: INK,
+            lineHeight: 1,
+            padding: 0,
+          }}
+          aria-label="Add reaction"
+        >
+          ＋
+        </button>
+      )}
     </div>
   );
 }

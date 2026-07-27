@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SwoleGuy from './SwoleGuy';
 import Header from './Header';
+import { usePrefetch } from './Nav';
 import { INK, ARCHIVO, PAGE, card, btn } from '@/lib/ui';
 
 export default function Landing() {
@@ -25,6 +26,8 @@ export default function Landing() {
     }
     setChecking(false);
   }, [router]);
+
+  usePrefetch(['/new', '/join', '/link']);
 
   if (checking) {
     return (

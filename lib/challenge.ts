@@ -1,5 +1,7 @@
 import type { Challenge, Member, LogRow, MemberStats, GoalMode } from './types';
 
+export const REACTION_EMOJIS = ['👏', '🔥', '💪', '😂', '👀'];
+
 export const AVATAR_COLORS = [
   { name: 'Blaze', hex: '#FF5DA2' },
   { name: 'Volt', hex: '#4D7CFF' },
@@ -127,7 +129,7 @@ export function getSwole(total: number, totalGoal: number) {
   let title = 'Couch Potato';
   let tier = 0;
   if (p >= 1) {
-    title = 'SWOLE GOD';
+    title = 'MAXED OUT';
     tier = 5;
   } else if (p >= 0.8) {
     title = 'Absolute Unit';
@@ -215,6 +217,28 @@ export function paceFor(c: Challenge, total: number, today: string) {
   else if (delta >= goal * 0.02) status = 'ahead';
   else if (delta <= -goal * 0.05) status = 'behind';
   return { status, expected, delta, perDay: Math.round(perDay * 10) / 10 };
+}
+
+// ---------- completion ----------
+// Have you satisfied TODAY for this challenge? For a daily goal that means you
+// hit today's number. For a total goal there is no daily duty, so "done for the
+// day" simply means you logged something, OR you have already finished overall.
+export function metToday(c: Challenge, todayAmount: number, total: number): boolean {
+  if (goalReached(c, total)) return true;
+  if (c.goal_mode === 'daily') return todayAmount >= dailyTarget(c);
+  return todayAmount > 0;
+}
+
+// Have you finished the WHOLE challenge? Only meaningful for total goals; a daily
+// challenge is never "finished early", you just keep logging each day.
+export function goalReached(c: Challenge, total: number): boolean {
+  if (c.goal_mode === 'total') return total >= totalGoalFor(c);
+  return false;
+}
+
+// Does this challenge still want something from you today?
+export function needsYouToday(c: Challenge, todayAmount: number, total: number, today: string): boolean {
+  return phaseOf(c, today) === 'active' && !metToday(c, todayAmount, total);
 }
 
 // ---------- invite codes ----------
