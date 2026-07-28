@@ -135,3 +135,66 @@ select {
     transition: none;
   }
 }
+
+/* ---------- reactions ---------- */
+/* Small, tactile press. Deliberately lighter than the big neo-brutalist
+   buttons so a reaction feels like a quick tap, not a commitment. */
+.rx-pill {
+  transition: transform 0.12s cubic-bezier(0.2, 1.4, 0.4, 1), background 0.15s ease, border-color 0.15s ease;
+}
+.rx-pill:active {
+  transform: scale(0.92);
+}
+@media (hover: hover) {
+  .rx-pill:hover {
+    transform: translateY(-1px);
+    border-color: rgba(20, 20, 20, 0.55);
+  }
+}
+
+.rx-picker {
+  animation: rxPickerIn 0.16s cubic-bezier(0.2, 1.3, 0.4, 1);
+  transform-origin: 10% 0%;
+}
+@keyframes rxPickerIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.82) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.rx-emoji {
+  animation: rxEmojiIn 0.22s backwards cubic-bezier(0.2, 1.5, 0.4, 1);
+  transition: transform 0.1s ease;
+}
+.rx-emoji:active {
+  transform: scale(1.35);
+}
+@media (hover: hover) {
+  .rx-emoji:hover {
+    transform: scale(1.22);
+  }
+}
+@keyframes rxEmojiIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rx-pill,
+  .rx-picker,
+  .rx-emoji {
+    animation: none;
+    transition: none;
+  }
+}

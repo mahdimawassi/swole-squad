@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Header from './Header';
 import { usePrefetch } from './Nav';
 import { goalLabel, emojiFor, prettyDate } from '@/lib/challenge';
+import { detectPlatform } from '@/lib/social';
 import type { User, Challenge, Member } from '@/lib/types';
 import { INK, ARCHIVO, PAGE, card, btn, input, label } from '@/lib/ui';
 
@@ -25,12 +26,14 @@ export default function ChallengeAdmin({
   const [goal, setGoal] = useState(String(challenge.goal_amount));
   const [end, setEnd] = useState(challenge.end_date);
   const [sharing, setSharing] = useState(challenge.sharing_enabled !== false);
+  const [groupUrl, setGroupUrl] = useState(challenge.group_chat_url ?? '');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const groupPreview = detectPlatform(groupUrl);
   const goalNum = Number(goal);
   const detailsDirty =
     name.trim() !== challenge.name || goalNum !== challenge.goal_amount || end !== challenge.end_date;
@@ -153,6 +156,63 @@ export default function ChallengeAdmin({
             }}
           />
         </button>
+      </div>
+
+      {/* group chat link */}
+      <div style={card}>
+        <div style={{ fontFamily: ARCHIVO, fontSize: 15, marginBottom: 4 }}>GROUP CHAT</div>
+        <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, marginBottom: 12 }}>
+          Already have a group for this crew? Paste its invite link and everyone in the challenge gets a button
+          to join it. WhatsApp, Telegram, Instagram, Discord, Signal, whatever you use.
+        </div>
+        <input
+          value={groupUrl}
+          onChange={(e) => setGroupUrl(e.target.value)}
+          placeholder="https://chat.whatsapp.com/…"
+          maxLength={400}
+          style={{ ...input, marginBottom: 8 }}
+        />
+        {groupPreview && (
+          <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 10 }}>
+            {groupPreview.emoji} Detected: {groupPreview.label}
+          </div>
+        )}
+        {!groupPreview && groupUrl.trim() !== '' && (
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#C21F3A', marginBottom: 10 }}>
+            That does not look like a link yet.
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => patch({ group_chat_url: groupUrl.trim() }, groupUrl.trim() ? 'Group chat linked.' : 'Group chat removed.')}
+            disabled={busy || groupUrl.trim() === (challenge.group_chat_url ?? '') || (groupUrl.trim() !== '' && !groupPreview)}
+            className="nb"
+            style={btn('#4D7CFF', {
+              flex: 1,
+              color: '#fff',
+              fontSize: 14,
+              opacity:
+                busy || groupUrl.trim() === (challenge.group_chat_url ?? '') || (groupUrl.trim() !== '' && !groupPreview)
+                  ? 0.5
+                  : 1,
+            })}
+          >
+            Save link
+          </button>
+          {challenge.group_chat_url && (
+            <button
+              onClick={() => {
+                setGroupUrl('');
+                patch({ group_chat_url: '' }, 'Group chat removed.');
+              }}
+              disabled={busy}
+              className="nb"
+              style={btn('#fff', { fontSize: 14, padding: '13px 14px' })}
+            >
+              Remove
+            </button>
+          )}
+        </div>
       </div>
 
       {/* invite */}

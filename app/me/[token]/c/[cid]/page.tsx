@@ -1,6 +1,6 @@
 import ChallengeView from '@/components/ChallengeView';
 import Notice from '@/components/Notice';
-import { getUserByToken, getChallengeById, getMembers, getLogsFor, getMessages, getReactions } from '@/lib/data';
+import { getUserByToken, getChallengeById, getMembers, getLogsFor, getReactions } from '@/lib/data';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,9 +30,8 @@ export default async function ChallengePage({ params }: { params: Promise<{ toke
     );
   }
 
-  const [logs, messages, reactions] = await Promise.all([
+  const [logs, reactions] = await Promise.all([
     getLogsFor(members.map((m) => m.participant_id)),
-    getMessages(challenge.id),
     getReactions(challenge.id, user.id),
   ]);
 
@@ -42,7 +41,6 @@ export default async function ChallengePage({ params }: { params: Promise<{ toke
       challenge={challenge}
       members={members}
       logs={logs}
-      messages={messages}
       reactions={reactions}
       myParticipantId={me.participant_id}
     />

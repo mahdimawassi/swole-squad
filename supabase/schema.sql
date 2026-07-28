@@ -161,3 +161,26 @@ begin
   end if;
 end; $$;
 alter table users add column if not exists avatar_style text not null default 'classic';
+
+-- ---------- v4 ----------
+alter table challenges add column if not exists group_chat_url text;
+create index if not exists idx_reactions_recent on reactions(challenge_id, created_at);
+
+create or replace function toggle_reaction(p_challenge uuid, p_to uuid, p_from uuid, p_emoji text)
+returns boolean language plpgsql as $$
+declare v_id uuid; v_created timestamptz; v_cutoff timestamptz := now() - interval '24 hours';
+begin
+  select id, created_at into v_id, v_created from reactions
+  where challenge_id = p_challenge and to_user = p_to and from_user = p_from and emoji = p_emoji;
+  if v_id is null then
+    insert into reactions (challenge_id, to_user, from_user, emoji)
+    values (p_challenge, p_to, p_from, p_emoji);
+    return true;
+  end if;
+  if v_created <= v_cutoff then
+    update reactions set created_at = now() where id = v_id;
+    return true;
+  end if;
+  delete from reactions where id = v_id;
+  return false;
+end; $$;

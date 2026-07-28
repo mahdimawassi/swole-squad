@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdmin } from '@/lib/supabaseAdmin';
 import { getChallengeByCode, getUserByEmail, getUserByToken } from '@/lib/data';
 import { AVATAR_COLORS, makeInviteCode, normalizeCode, isValidGoalMode, addDays } from '@/lib/challenge';
+import { normalizeGroupUrl } from '@/lib/social';
 import { sendAccessLink, isEmail } from '@/lib/email';
 
 // GET /api/challenge?code=ABC123  -> does this code exist?
@@ -38,6 +39,7 @@ export async function POST(req: Request) {
       ? String(body.creator.avatar_color)
       : AVATAR_COLORS[0].hex;
     const bodyTokenRaw = body?.creator?.token ? String(body.creator.token) : '';
+    const groupUrl = normalizeGroupUrl(body?.group_chat_url);
 
     if (!activity) return NextResponse.json({ error: 'Pick an activity.' }, { status: 400 });
     if (!creatorName) return NextResponse.json({ error: 'Enter your name.' }, { status: 400 });
@@ -113,6 +115,7 @@ export async function POST(req: Request) {
           end_date: addDays(start, duration - 1),
           invite_code: code,
           created_by: user.id,
+          group_chat_url: groupUrl,
         })
         .select('*')
         .single();

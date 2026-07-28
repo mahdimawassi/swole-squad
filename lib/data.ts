@@ -116,56 +116,38 @@ export async function getMyChallenges(
   return out;
 }
 
-// ---------- messages ----------
-export async function getMessages(challengeId: string, limit = 100): Promise<import('./types').Message[]> {
-  const supabase = getAdmin();
-  const { data } = await supabase
-    .from('messages')
-    .select('id, body, created_at, user_id, users(name, avatar_color)')
-    .eq('challenge_id', challengeId)
-    .order('created_at', { ascending: true })
-    .limit(limit);
-
-  const rows = (data ?? []) as unknown as {
-    id: string;
-    body: string;
-    created_at: string;
-    user_id: string;
-    users: { name: string; avatar_color: string } | { name: string; avatar_color: string }[] | null;
-  }[];
-
-  return rows.map((r) => {
-    const u = Array.isArray(r.users) ? r.users[0] : r.users;
-    return {
-      id: r.id,
-      user_id: r.user_id,
-      name: u?.name ?? 'Someone',
-      avatar_color: u?.avatar_color ?? '#4D7CFF',
-      body: r.body,
-      created_at: r.created_at,
-    };
-  });
-}
-
 // ---------- reactions ----------
-// Returns a map: to_user id -> { emoji -> { count, mine } }, for one challenge.
+// Reactions are deliberately short-lived: only the last 24 hours count, so the
+// board reflects recent encouragement rather than a pile-up from week one.
+export const REACTION_TTL_HOURS = 24;
+
+// Returns to_user -> emoji -> { count, mine, who (ids), latest }.
+// Only user ids are returned; the view maps them to names from its member list,
+// which avoids a second join and keeps this query simple.
 export async function getReactions(
   challengeId: string,
   meUserId: string,
 ): Promise<Record<string, import('./types').ReactionSummary>> {
   const supabase = getAdmin();
+  const cutoff = new Date(Date.now() - REACTION_TTL_HOURS * 3600 * 1000).toISOString();
+
   const { data } = await supabase
     .from('reactions')
-    .select('to_user, from_user, emoji')
-    .eq('challenge_id', challengeId);
+    .select('to_user, from_user, emoji, created_at')
+    .eq('challenge_id', challengeId)
+    .gt('created_at', cutoff)
+    .order('created_at', { ascending: false });
 
-  const rows = (data ?? []) as { to_user: string; from_user: string; emoji: string }[];
+  const rows = (data ?? []) as { to_user: string; from_user: string; emoji: string; created_at: string }[];
+
   const out: Record<string, import('./types').ReactionSummary> = {};
   for (const r of rows) {
     const forUser = (out[r.to_user] ??= {});
-    const cell = (forUser[r.emoji] ??= { count: 0, mine: false });
+    const cell = (forUser[r.emoji] ??= { count: 0, mine: false, who: [], latest: r.created_at });
     cell.count += 1;
+    cell.who.push(r.from_user);
     if (r.from_user === meUserId) cell.mine = true;
+    if (r.created_at > cell.latest) cell.latest = r.created_at;
   }
   return out;
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdmin } from '@/lib/supabaseAdmin';
 import { getUserByToken, getChallengeById } from '@/lib/data';
 import { daysBetween } from '@/lib/challenge';
+import { normalizeGroupUrl } from '@/lib/social';
 
 // Creator-only edits to a challenge: name, goal amount, end date, sharing on/off.
 export async function POST(req: Request) {
@@ -15,6 +16,19 @@ export async function POST(req: Request) {
     const nextName = body?.name !== undefined ? String(body.name).trim().slice(0, 60) : undefined;
     const nextGoal = body?.goal_amount !== undefined ? Number(body.goal_amount) : undefined;
     const nextEnd = body?.end_date !== undefined ? String(body.end_date) : undefined;
+    // Empty string clears the link; anything else must be a real http(s) URL.
+    let nextGroup: string | null | undefined;
+    if (body?.group_chat_url !== undefined) {
+      const raw = String(body.group_chat_url).trim();
+      if (!raw) nextGroup = null;
+      else {
+        const clean = normalizeGroupUrl(raw);
+        if (!clean) {
+          return NextResponse.json({ error: 'That does not look like a valid invite link.' }, { status: 400 });
+        }
+        nextGroup = clean;
+      }
+    }
 
     if (nextName !== undefined && !nextName) {
       return NextResponse.json({ error: 'Name cannot be empty.' }, { status: 400 });
@@ -35,11 +49,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Only the creator can change this challenge.' }, { status: 403 });
     }
 
-    const patch: Record<string, string | number | boolean> = {};
+    const patch: Record<string, string | number | boolean | null> = {};
 
     if (nextName !== undefined) patch.name = nextName;
     if (body?.sharing_enabled !== undefined) patch.sharing_enabled = Boolean(body.sharing_enabled);
     if (nextGoal !== undefined) patch.goal_amount = nextGoal;
+    if (nextGroup !== undefined) patch.group_chat_url = nextGroup;
 
     if (nextEnd !== undefined) {
       // Needs the start date, so this check runs after the challenge is loaded.

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import SwoleGuy from './SwoleGuy';
 import Header from './Header';
 import { usePrefetch } from './Nav';
+import Reactions from './Reactions';
 import {
   computeStats,
   getSwole,
@@ -16,6 +17,8 @@ import {
   phaseOf,
   challengeDay,
   paceFor,
+  metToday,
+  needsYouToday,
   quickAddsFor,
   todayStr,
   addDays,
@@ -24,15 +27,16 @@ import {
   fmt,
   clamp,
 } from '@/lib/challenge';
-import type { User, Challenge, Member, LogRow, Message, ReactionSummary } from '@/lib/types';
+import type { User, Challenge, Member, LogRow, ReactionSummary } from '@/lib/types';
 import { INK, ARCHIVO, PAGE, card, btn, barOuter, input } from '@/lib/ui';
+import { detectPlatform } from '@/lib/social';
+import { shareText, inviteMessage, braggingMessage, standingsMessage, nudgeMessage } from '@/lib/share';
 
 export default function ChallengeView({
   user,
   challenge,
   members,
   logs,
-  messages,
   reactions,
   myParticipantId,
 }: {
@@ -40,12 +44,11 @@ export default function ChallengeView({
   challenge: Challenge;
   members: Member[];
   logs: LogRow[];
-  messages: Message[];
   reactions: Record<string, ReactionSummary>;
   myParticipantId: string;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<'me' | 'squad' | 'chat'>('me');
+  const [tab, setTab] = useState<'me' | 'squad'>('me');
   const [today, setToday] = useState('');
   const [day, setDay] = useState('');
   const [amount, setAmount] = useState('');
@@ -55,10 +58,7 @@ export default function ChallengeView({
   const [copied, setCopied] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
-  const [openReactions, setOpenReactions] = useState<string | null>(null);
-  const [reactingBusy, setReactingBusy] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -74,6 +74,10 @@ export default function ChallengeView({
 
   const stats = useMemo(() => computeStats(members, logs, today), [members, logs, today]);
   const ranked = useMemo(() => [...stats].sort((a, b) => b.total - a.total), [stats]);
+
+  // Reaction pills show ids; turn them into names using the member list we have.
+  const nameFor = (userId: string) =>
+    userId === user.id ? 'You' : (members.find((m) => m.user_id === userId)?.name ?? 'Someone');
   const mine = stats.find((s) => s.member.participant_id === myParticipantId);
   const myTotal = mine?.total ?? 0;
   const myRank = ranked.findIndex((s) => s.member.participant_id === myParticipantId) + 1;
@@ -206,33 +210,8 @@ export default function ChallengeView({
     }
   }
 
-  async function postMessage() {
-    const text = draft.trim();
-    if (!text || sending) return;
-    setSending(true);
-    try {
-      const res = await fetch('/api/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: user.secret_token, challenge_id: challenge.id, body: text }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data?.error || 'Could not post.');
-      } else {
-        setDraft('');
-        router.refresh();
-      }
-    } catch {
-      showToast('Network error.');
-    } finally {
-      setSending(false);
-    }
-  }
-
-  async function react(toUserId: string, emoji: string) {
-    if (reactingBusy) return;
-    setReactingBusy(true);
+  // Returns the reaction's new on/off state so the pill can reconcile itself.
+  async function react(toUserId: string, emoji: string): Promise<boolean> {
     try {
       const res = await fetch('/api/reaction', {
         method: 'POST',
@@ -240,13 +219,26 @@ export default function ChallengeView({
         body: JSON.stringify({ token: user.secret_token, challenge_id: challenge.id, to_user: toUserId, emoji }),
       });
       const data = await res.json();
-      if (!res.ok) showToast(data?.error || 'Could not react.');
-      else router.refresh();
+      if (!res.ok) {
+        showToast(data?.error || 'Could not react.');
+        return false;
+      }
+      // Refresh quietly in the background; the pill already moved.
+      router.refresh();
+      return data.on === true;
     } catch {
       showToast('Network error.');
-    } finally {
-      setReactingBusy(false);
+      return false;
     }
+  }
+
+  async function share(text: string) {
+    if (sharing) return;
+    setSharing(true);
+    const result = await shareText(text);
+    if (result === 'copied') showToast('Copied. Paste it in your group 📋');
+    else if (result === 'failed') showToast('Could not share.');
+    setSharing(false);
   }
 
   async function copy(text: string, key: string) {
@@ -261,6 +253,16 @@ export default function ChallengeView({
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const inviteUrl = `${origin}/join/${challenge.invite_code}`;
+  const groupPlatform = detectPlatform(challenge.group_chat_url);
+
+  const shareRows = ranked.map((r) => ({
+    name: r.member.name,
+    total: r.total,
+    doneToday: metToday(challenge, r.today, r.total),
+  }));
+  const slackers = today
+    ? ranked.filter((r) => needsYouToday(challenge, r.today, r.total, today)).map((r) => r.member.name)
+    : [];
 
   usePrefetch([`/me/${user.secret_token}`, `/me/${user.secret_token}/profile`]);
 
@@ -309,17 +311,16 @@ export default function ChallengeView({
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
         {([
           ['me', 'MY GAINS'],
-          ['squad', `SQUAD (${members.length})`],
-          ['chat', messages.length ? `CHAT (${messages.length})` : 'CHAT'],
+          ['squad', `THE SQUAD (${members.length})`],
         ] as const).map(([k, labelText]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
             className="nb"
-            style={btn(tab === k ? '#4D7CFF' : '#fff', { flex: 1, color: tab === k ? '#fff' : INK, fontSize: 13, padding: '13px 6px' })}
+            style={btn(tab === k ? '#4D7CFF' : '#fff', { flex: 1, color: tab === k ? '#fff' : INK })}
           >
             {labelText}
           </button>
@@ -556,13 +557,10 @@ export default function ChallengeView({
                   </div>
                 </div>
 
-                <ReactionRow
+                <Reactions
                   summary={reactions[s.member.user_id]}
-                  open={openReactions === s.member.user_id}
-                  disabled={reactingBusy}
-                  onToggleOpen={() =>
-                    setOpenReactions(openReactions === s.member.user_id ? null : s.member.user_id)
-                  }
+                  nameFor={nameFor}
+                  meId={user.id}
                   onReact={(emoji) => react(s.member.user_id, emoji)}
                 />
 
@@ -607,36 +605,120 @@ export default function ChallengeView({
             );
           })}
 
-          <div style={card}>
-            <div style={{ fontFamily: ARCHIVO, fontSize: 15, marginBottom: 4 }}>DRAG SOMEONE IN</div>
-            <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, marginBottom: 10 }}>
-              Share the code or the link, either works.
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <div
-                style={{
-                  flex: 1,
-                  fontFamily: ARCHIVO,
-                  fontSize: 22,
-                  letterSpacing: 3,
-                  textAlign: 'center',
-                  background: '#FFF9E8',
-                  border: `3px solid ${INK}`,
-                  borderRadius: 12,
-                  padding: '8px 4px',
-                }}
-              >
-                {challenge.invite_code}
+          {groupPlatform && challenge.group_chat_url && (
+            <a
+              href={challenge.group_chat_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="nb"
+              style={{
+                ...card,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                textDecoration: 'none',
+                color: INK,
+                background: '#fff',
+              }}
+            >
+              <div style={{ fontSize: 26 }}>{groupPlatform.emoji}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: ARCHIVO, fontSize: 15 }}>JOIN THE GROUP CHAT</div>
+                <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7 }}>
+                  The squad talks on {groupPlatform.label}
+                </div>
               </div>
+              <div style={{ fontSize: 18, fontWeight: 900 }}>→</div>
+            </a>
+          )}
+
+          <div style={card}>
+            <div style={{ fontFamily: ARCHIVO, fontSize: 15, marginBottom: 4 }}>POST TO THE GROUP</div>
+            <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, marginBottom: 12 }}>
+              We write it, you pick where it goes.
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
-                onClick={() => copy(inviteUrl, 'invite')}
+                onClick={() => share(standingsMessage(challenge, shareRows, inviteUrl))}
+                disabled={sharing}
                 className="nb"
-                style={btn('#FF5DA2', { color: '#fff', padding: '11px 14px', fontSize: 14 })}
+                style={btn('#FFD54A', { flex: '1 1 46%', fontSize: 14, padding: '11px 8px' })}
               >
-                {copied === 'invite' ? '✅' : 'Copy link'}
+                🏆 Standings
+              </button>
+              <button
+                onClick={() =>
+                  share(
+                    braggingMessage(
+                      challenge,
+                      { name: user.name, total: myTotal, rank: myRank || 1, streak: mine?.streak ?? 0, title: level.title },
+                      inviteUrl,
+                    ),
+                  )
+                }
+                disabled={sharing}
+                className="nb"
+                style={btn('#37C871', { flex: '1 1 46%', color: '#fff', fontSize: 14, padding: '11px 8px' })}
+              >
+                💪 My progress
+              </button>
+              <button
+                onClick={() => share(nudgeMessage(challenge, slackers, inviteUrl))}
+                disabled={sharing}
+                className="nb"
+                style={btn('#fff', { flex: '1 1 46%', fontSize: 14, padding: '11px 8px' })}
+              >
+                👀 Nudge {slackers.length > 0 ? `(${slackers.length})` : ''}
+              </button>
+              <button
+                onClick={() => share(inviteMessage(challenge, inviteUrl))}
+                disabled={sharing || challenge.sharing_enabled === false}
+                className="nb"
+                style={btn('#FF5DA2', {
+                  flex: '1 1 46%',
+                  color: '#fff',
+                  fontSize: 14,
+                  padding: '11px 8px',
+                  opacity: challenge.sharing_enabled === false ? 0.5 : 1,
+                })}
+              >
+                ➕ Invite
               </button>
             </div>
           </div>
+
+          <div style={{ ...card, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div
+              style={{
+                flex: 1,
+                fontFamily: ARCHIVO,
+                fontSize: 20,
+                letterSpacing: 3,
+                textAlign: 'center',
+                background: '#FFF9E8',
+                border: `3px solid ${INK}`,
+                borderRadius: 12,
+                padding: '8px 4px',
+                opacity: challenge.sharing_enabled === false ? 0.45 : 1,
+              }}
+            >
+              {challenge.invite_code}
+            </div>
+            <button
+              onClick={() => copy(inviteUrl, 'invite')}
+              disabled={challenge.sharing_enabled === false}
+              className="nb"
+              style={btn('#fff', { padding: '11px 14px', fontSize: 13, opacity: challenge.sharing_enabled === false ? 0.5 : 1 })}
+            >
+              {copied === 'invite' ? '✅' : 'Copy link'}
+            </button>
+          </div>
+
+          {challenge.sharing_enabled === false && (
+            <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, textAlign: 'center', marginTop: -6, marginBottom: 14 }}>
+              🔒 Sharing is off, so nobody new can join right now.
+            </div>
+          )}
 
           {isAdmin && (
             <div style={{ ...card, background: '#FFF3B0', padding: 12 }}>
@@ -678,94 +760,6 @@ export default function ChallengeView({
                 {isAdmin ? '🗑️ Delete challenge' : '🚪 Leave challenge'}
               </button>
             )}
-          </div>
-        </>
-      )}
-
-      {tab === 'chat' && (
-        <>
-          <div style={{ ...card, padding: 14 }}>
-            <div style={{ fontFamily: ARCHIVO, fontSize: 15, marginBottom: 4 }}>THE GROUP CHAT</div>
-            <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.7 }}>
-              Talk trash, cheer each other on. Everyone in the challenge sees this.
-            </div>
-          </div>
-
-          {messages.length === 0 && (
-            <div style={{ ...card, textAlign: 'center', padding: 22 }}>
-              <div style={{ fontSize: 30 }}>💬</div>
-              <div style={{ fontWeight: 700, fontSize: 14, marginTop: 6 }}>No messages yet. Break the ice.</div>
-            </div>
-          )}
-
-          {messages.map((m) => {
-            const mine = m.user_id === user.id;
-            return (
-              <div
-                key={m.id}
-                style={{
-                  display: 'flex',
-                  flexDirection: mine ? 'row-reverse' : 'row',
-                  gap: 8,
-                  marginBottom: 10,
-                  alignItems: 'flex-end',
-                }}
-              >
-                <div
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: 999,
-                    background: m.avatar_color,
-                    border: `2px solid ${INK}`,
-                    flexShrink: 0,
-                    marginBottom: 4,
-                  }}
-                />
-                <div style={{ maxWidth: '78%' }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.65, margin: mine ? '0 2px 2px 0' : '0 0 2px 2px', textAlign: mine ? 'right' : 'left' }}>
-                    {mine ? 'You' : m.name}
-                  </div>
-                  <div
-                    style={{
-                      background: mine ? '#4D7CFF' : '#fff',
-                      color: mine ? '#fff' : INK,
-                      border: `3px solid ${INK}`,
-                      borderRadius: 14,
-                      boxShadow: `3px 3px 0 ${INK}`,
-                      padding: '9px 12px',
-                      fontWeight: 600,
-                      fontSize: 14,
-                      wordBreak: 'break-word',
-                      whiteSpace: 'pre-wrap',
-                    }}
-                  >
-                    {m.body}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 14, position: 'sticky', bottom: 8 }}>
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') postMessage();
-              }}
-              placeholder="Say something…"
-              maxLength={500}
-              style={{ ...input, flex: 1 }}
-            />
-            <button
-              onClick={postMessage}
-              disabled={sending || !draft.trim()}
-              className="nb"
-              style={btn('#FF5DA2', { color: '#fff', opacity: sending || !draft.trim() ? 0.5 : 1 })}
-            >
-              SEND
-            </button>
           </div>
         </>
       )}
@@ -812,92 +806,6 @@ function Stat({ emoji, label, value }: { emoji: string; label: string; value: st
       <div style={{ fontSize: 11, fontWeight: 800, marginTop: 3 }}>
         {emoji} {label}
       </div>
-    </div>
-  );
-}
-
-
-function ReactionRow({
-  summary,
-  open,
-  disabled,
-  onToggleOpen,
-  onReact,
-}: {
-  summary: ReactionSummary | undefined;
-  open: boolean;
-  disabled: boolean;
-  onToggleOpen: () => void;
-  onReact: (emoji: string) => void;
-}) {
-  const active = summary ? Object.entries(summary).filter(([, v]) => v.count > 0) : [];
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
-      {active.map(([emoji, v]) => (
-        <button
-          key={emoji}
-          onClick={() => onReact(emoji)}
-          disabled={disabled}
-          className="nb"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            background: v.mine ? '#FFF3B0' : '#fff',
-            border: `2px solid ${INK}`,
-            borderRadius: 999,
-            padding: '3px 9px',
-            fontSize: 13,
-            fontWeight: 800,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            color: INK,
-          }}
-        >
-          <span>{emoji}</span>
-          <span>{v.count}</span>
-        </button>
-      ))}
-
-      {open ? (
-        <div style={{ display: 'inline-flex', gap: 4, background: '#fff', border: `2px solid ${INK}`, borderRadius: 999, padding: '2px 6px' }}>
-          {REACTION_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              onClick={() => {
-                onReact(emoji);
-                onToggleOpen();
-              }}
-              disabled={disabled}
-              style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', padding: '2px 2px', lineHeight: 1 }}
-              aria-label={`React ${emoji}`}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <button
-          onClick={onToggleOpen}
-          className="nb"
-          style={{
-            background: '#fff',
-            border: `2px solid ${INK}`,
-            borderRadius: 999,
-            width: 28,
-            height: 24,
-            fontSize: 14,
-            fontWeight: 900,
-            cursor: 'pointer',
-            color: INK,
-            lineHeight: 1,
-            padding: 0,
-          }}
-          aria-label="Add reaction"
-        >
-          ＋
-        </button>
-      )}
     </div>
   );
 }

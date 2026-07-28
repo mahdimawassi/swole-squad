@@ -6,6 +6,7 @@ import SwoleGuy from './SwoleGuy';
 import Header from './Header';
 import { PRESETS, AVATAR_COLORS, todayStr, addDays, prettyDate, fmt, isEmail } from '@/lib/challenge';
 import type { GoalMode } from '@/lib/types';
+import { detectPlatform } from '@/lib/social';
 import { INK, ARCHIVO, PAGE, card, btn, chip, input, label } from '@/lib/ui';
 
 const LENGTHS = [7, 14, 30, 60, 90];
@@ -34,6 +35,7 @@ export default function CreateChallenge() {
   const [endDate, setEndDate] = useState('');
   const [startToday, setStartToday] = useState(true);
   const [start, setStart] = useState('');
+  const [groupUrl, setGroupUrl] = useState('');
 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -81,6 +83,7 @@ export default function CreateChallenge() {
     setAmount(String(m === 'daily' ? preset.dailyDefault : preset.totalDefault));
   }
 
+  const groupDetected = detectPlatform(groupUrl);
   const amountNum = Number(amount);
   const lengthOk = computedDays >= 1 && computedDays <= 365;
   // Someone we already know is exempt: the in-app prompt collects their email.
@@ -112,6 +115,7 @@ export default function CreateChallenge() {
           goal_amount: amountNum,
           start_date: effectiveStart,
           duration_days: computedDays,
+          group_chat_url: groupUrl.trim(),
           creator: {
             // Sending the saved token is what keeps you as ONE person across
             // every challenge you create. Without it the server has no way to
@@ -297,6 +301,22 @@ export default function CreateChallenge() {
         />
         <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.7, marginTop: 6 }}>
           Helps you tell your challenges apart when you have a few going.
+        </div>
+      </div>
+
+      <div style={card}>
+        <label style={label}>GROUP CHAT (OPTIONAL)</label>
+        <input
+          value={groupUrl}
+          onChange={(e) => setGroupUrl(e.target.value)}
+          placeholder="Paste your group invite link"
+          maxLength={400}
+          style={input}
+        />
+        <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.7, marginTop: 6 }}>
+          {groupDetected
+            ? `${groupDetected.emoji} ${groupDetected.label} detected. Everyone who joins gets a button to hop in.`
+            : 'Already have a WhatsApp, Telegram or Instagram group for this crew? Paste its invite link and we will point everyone to it. You can add this later.'}
         </div>
       </div>
 

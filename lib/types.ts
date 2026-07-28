@@ -24,6 +24,7 @@ export type Challenge = {
   invite_code: string;
   created_by: string | null;
   sharing_enabled?: boolean;
+  group_chat_url?: string | null;
   created_at?: string;
 };
 
@@ -61,14 +62,12 @@ export type HubEntry = {
   squadSize: number;
 };
 
-export type Message = {
-  id: string;
-  user_id: string;
-  name: string;
-  avatar_color: string;
-  body: string;
-  created_at: string;
+// emoji -> who left it (user ids), whether I did, and how fresh the newest is
+export type ReactionCell = {
+  count: number;
+  mine: boolean;
+  who: string[];
+  latest: string; // ISO timestamp of the most recent one
 };
 
-// emoji -> { count, mine } for one person in a challenge
-export type ReactionSummary = Record<string, { count: number; mine: boolean }>;
+export type ReactionSummary = Record<string, ReactionCell>;
