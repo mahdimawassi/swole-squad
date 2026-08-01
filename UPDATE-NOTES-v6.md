@@ -28,13 +28,13 @@ You skipped v5, so this covers both. Deploy them together.
 
 4. **Upload the code** and let Vercel redeploy.
 
-5. **Award badges retroactively** — visit once, replacing the values:
+5. **Award badges retroactively (optional).** Open this address in your browser once, using your own site and the same random string you used for `CRON_SECRET`:
    ```
-   https://YOUR-URL/api/backfill
+   https://swole-squad.vercel.app/api/backfill?secret=YOUR_CRON_SECRET
    ```
-   If you set `CRON_SECRET` you'll need to send it as a header, or temporarily remove that variable, run it, then add it back. It's safe to run more than once.
+   You'll see a short line of text confirming how many badges were handed out. Safe to open more than once.
 
-   Even without this, badges backfill on their own the first time anyone opens their collection or logs anything.
+   You can skip this entirely if you like. Badges award themselves the first time each person opens their collection or logs anything, so nobody misses out either way. Running it just means everyone's badges are already waiting before they look.
 
 ## Email is now opt-in
 
