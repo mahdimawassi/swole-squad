@@ -1,7 +1,7 @@
 import Activity from '@/components/Activity';
 import Notice from '@/components/Notice';
 import { getUserByToken } from '@/lib/data';
-import { listNotifications, markAllRead } from '@/lib/notify';
+import { listNotifications, markAllRead, pruneOld } from '@/lib/notify';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,8 @@ export default async function ActivityPage({ params }: { params: Promise<{ token
     return <Notice title="We can’t find your spot" body="This link may be broken." reset />;
   }
 
-  // Read the list first, then clear the badge: opening the page IS the read.
+  // Tidy first, then read the list, then clear the bell: opening IS the read.
+  await pruneOld(user.id);
   const notes = await listNotifications(user.id);
   await markAllRead(user.id);
 

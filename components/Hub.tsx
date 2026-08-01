@@ -307,10 +307,7 @@ export default function Hub({
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <SwoleGuy total={e.total} totalGoal={goal} color={user.avatar_color} size={62} style={user.avatar_style} equipped={user.equipped} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800, marginBottom: 4 }}>
-                    <span>{lv.title}</span>
-                    <span>#{e.rank}</span>
-                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 4 }}>{lv.title}</div>
                   <div style={barOuter}>
                     <div
                       style={{
@@ -328,7 +325,7 @@ export default function Hub({
                 </div>
               </div>
 
-              {today && pace && ph === 'active' && (
+              {today && pace && ph === 'active' && pace.status === 'behind' && (
                 <div
                   style={{
                     fontSize: 12,
@@ -336,16 +333,11 @@ export default function Hub({
                     marginTop: 10,
                     padding: '6px 10px',
                     borderRadius: 10,
-                    background:
-                      pace.status === 'behind' ? '#FFD9E2' : pace.status === 'ahead' ? '#D9F7E5' : '#FFF3B0',
+                    background: '#FFD9E2',
                     border: `2px solid ${INK}`,
                   }}
                 >
-                  {pace.status === 'behind'
-                    ? `😬 Behind pace. ${fmt(pace.perDay)} ${c.unit_label}/day to catch up.`
-                    : pace.status === 'ahead'
-                      ? '😎 Ahead of pace. Show-off.'
-                      : `🎯 On pace. Keep at ${fmt(pace.perDay)} ${c.unit_label}/day.`}
+                  😬 Behind pace. {fmt(pace.perDay)} {c.unit_label}/day to catch up.
                 </div>
               )}
             </div>
@@ -389,21 +381,18 @@ export default function Hub({
           background: boxCount > 0 ? '#FFF3B0' : '#fff',
         }}
       >
-        <div style={{ fontSize: 26 }}>{boxCount > 0 ? '🎁' : '🏅'}</div>
+        <div style={{ fontSize: 22 }}>{boxCount > 0 ? '🎁' : '🏅'}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: ARCHIVO, fontSize: 15 }}>
+          <div style={{ fontFamily: ARCHIVO, fontSize: 14 }}>
             {boxCount > 0 ? `${boxCount} ${boxCount === 1 ? 'BOX' : 'BOXES'} TO OPEN` : 'BADGES & ITEMS'}
           </div>
-          <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7 }}>
-            {boxCount > 0 ? 'Something new for your guy' : `${badgeCount} badges earned`}
-          </div>
+          {boxCount > 0 && (
+            <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7 }}>Something new for your guy</div>
+          )}
         </div>
         <div style={{ fontSize: 18, fontWeight: 900 }}>→</div>
       </button>
 
-      <p style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, opacity: 0.65, marginTop: 4 }}>
-        Bookmark this page. It&rsquo;s your key, and it works on any device.
-      </p>
 
       {/* Always reachable, however many challenges are stacked above. */}
       <div

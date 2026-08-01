@@ -91,3 +91,20 @@ export async function markAllRead(userId: string): Promise<void> {
     .eq('user_id', userId)
     .is('read_at', null);
 }
+
+// Anything already read and older than a week clears itself out, so the list
+// never becomes a wall of stale items nobody wants to tidy by hand.
+export async function pruneOld(userId: string): Promise<void> {
+  const cutoff = new Date(Date.now() - 7 * 86400000).toISOString();
+  try {
+    const supabase = getAdmin();
+    await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_id', userId)
+      .not('read_at', 'is', null)
+      .lt('created_at', cutoff);
+  } catch {
+    // housekeeping only
+  }
+}

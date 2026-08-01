@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from './Header';
 import { INK, ARCHIVO, PAGE, card, btn } from '@/lib/ui';
@@ -25,79 +26,145 @@ function ago(iso: string): string {
   return days === 1 ? 'yesterday' : `${days}d ago`;
 }
 
-export default function Activity({ token, notes }: { token: string; notes: Note[] }) {
+export default function Activity({ token, notes: initial }: { token: string; notes: Note[] }) {
   const router = useRouter();
+  // Local copy so a dismissed item leaves the screen straight away rather than
+  // sitting there until the next page load.
+  const [notes, setNotes] = useState(initial);
+  const [busy, setBusy] = useState(false);
+
+  async function remove(id: string) {
+    setNotes((list) => list.filter((n) => n.id !== id));
+    try {
+      await fetch('/api/notifications', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, id }),
+      });
+      router.refresh();
+    } catch {
+      // it is already gone from view; nothing useful to say
+    }
+  }
+
+  async function clearAll() {
+    if (busy) return;
+    setBusy(true);
+    setNotes([]);
+    try {
+      await fetch('/api/notifications', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, all: true }),
+      });
+      router.refresh();
+    } catch {
+      // ignore
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Tapping the row takes you there and clears it on the way out.
+  function open(n: Note) {
+    const href = n.url ? `/me/${token}${n.url}` : null;
+    remove(n.id);
+    if (href) router.push(href);
+  }
 
   return (
     <main style={PAGE}>
       <Header badge="ACTIVITY" back={`/me/${token}`} />
 
-      {notes.length === 0 && (
+      {notes.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', padding: 26 }}>
           <div style={{ fontSize: 34 }}>🔔</div>
-          <div style={{ fontFamily: ARCHIVO, fontSize: 17, marginTop: 6 }}>NOTHING YET</div>
+          <div style={{ fontFamily: ARCHIVO, fontSize: 17, marginTop: 6 }}>ALL CLEAR</div>
           <p style={{ fontWeight: 600, fontSize: 13, margin: '6px 0 0' }}>
-            Reactions from your squad, badges you unlock and people joining your challenges will show up here.
+            Reactions, badges and new squad members will show up here.
           </p>
         </div>
-      )}
-
-      {notes.map((n) => {
-        // Stored relative so the same row works for whoever is looking at it.
-        const href = n.url ? `/me/${token}${n.url}` : null;
-        const fresh = !n.read_at;
-        return (
-          <button
-            key={n.id}
-            onClick={() => href && router.push(href)}
-            className="nb"
-            disabled={!href}
-            style={{
-              ...card,
-              width: '100%',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 12,
-              textAlign: 'left',
-              cursor: href ? 'pointer' : 'default',
-              fontFamily: 'inherit',
-              background: fresh ? '#FFF3B0' : '#fff',
-              padding: 14,
-              marginBottom: 10,
-            }}
-          >
-            <div style={{ fontSize: 24, lineHeight: 1.1 }}>{n.icon ?? '🔔'}</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: ARCHIVO, fontSize: 14, lineHeight: 1.25 }}>{n.title}</div>
-              {n.body && (
-                <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, marginTop: 3 }}>{n.body}</div>
-              )}
-              <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, marginTop: 4 }}>{ago(n.created_at)}</div>
-            </div>
-            {fresh && (
-              <span
+      ) : (
+        <>
+          {notes.map((n) => (
+            <div
+              key={n.id}
+              style={{
+                ...card,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: 12,
+                marginBottom: 10,
+                background: n.read_at ? '#fff' : '#FFF3B0',
+              }}
+            >
+              <button
+                onClick={() => open(n)}
+                className="rx-pill"
                 style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 999,
-                  background: '#FF5DA2',
-                  border: `2px solid ${INK}`,
-                  flexShrink: 0,
-                  marginTop: 4,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 11,
+                  flex: 1,
+                  minWidth: 0,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  color: INK,
                 }}
-              />
-            )}
-          </button>
-        );
-      })}
+              >
+                <span style={{ fontSize: 23, lineHeight: 1.1 }}>{n.icon ?? '🔔'}</span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontFamily: ARCHIVO, fontSize: 14, lineHeight: 1.25 }}>
+                    {n.title}
+                  </span>
+                  {n.body && (
+                    <span style={{ display: 'block', fontSize: 12, fontWeight: 600, opacity: 0.75, marginTop: 2 }}>
+                      {n.body}
+                    </span>
+                  )}
+                  <span style={{ display: 'block', fontSize: 11, fontWeight: 700, opacity: 0.55, marginTop: 3 }}>
+                    {ago(n.created_at)}
+                  </span>
+                </span>
+              </button>
 
-      <button
-        onClick={() => router.push(`/me/${token}/profile`)}
-        className="nb"
-        style={btn('#fff', { width: '100%', fontSize: 14, marginTop: 6 })}
-      >
-        ⚙️ Notification settings
-      </button>
+              <button
+                onClick={() => remove(n.id)}
+                aria-label="Dismiss"
+                className="rx-pill"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 19,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  color: INK,
+                  opacity: 0.45,
+                  padding: '2px 4px',
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+
+          <button
+            onClick={clearAll}
+            disabled={busy}
+            className="nb"
+            style={btn('#fff', { width: '100%', fontSize: 14, opacity: busy ? 0.6 : 1 })}
+          >
+            Clear all
+          </button>
+        </>
+      )}
     </main>
   );
 }

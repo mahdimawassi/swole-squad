@@ -25,8 +25,22 @@ function button(href: string, label: string): string {
   return `<a href="${href}" style="display:inline-block;background:#FF5DA2;color:#fff;text-decoration:none;border:3px solid ${INK};border-radius:14px;padding:13px 20px;font-weight:900;font-size:16px">${label}</a>`;
 }
 
-async function send(to: string, subject: string, html: string, unsubUrl?: string): Promise<boolean> {
-  if (!emailEnabled()) return false;
+// Returns the raw outcome so problems are diagnosable instead of silent.
+export async function sendRaw(
+  to: string,
+  subject: string,
+  html: string,
+  unsubUrl?: string,
+): Promise<{ ok: boolean; status: number; detail: string }> {
+  if (!emailEnabled()) {
+    const missing = [
+      !process.env.RESEND_API_KEY && 'RESEND_API_KEY',
+      !process.env.EMAIL_FROM && 'EMAIL_FROM',
+    ]
+      .filter(Boolean)
+      .join(' and ');
+    return { ok: false, status: 0, detail: `Not configured: ${missing} missing.` };
+  }
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -43,10 +57,22 @@ async function send(to: string, subject: string, html: string, unsubUrl?: string
         headers: unsubUrl ? { 'List-Unsubscribe': `<${unsubUrl}>` } : undefined,
       }),
     });
-    return res.ok;
-  } catch {
-    return false;
+    const detail = await res.text();
+    if (!res.ok) {
+      // Surface it in the Vercel logs rather than failing quietly.
+      console.error('[email] Resend rejected the send', res.status, detail);
+    }
+    return { ok: res.ok, status: res.status, detail };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : 'Network error';
+    console.error('[email] send threw', detail);
+    return { ok: false, status: 0, detail };
   }
+}
+
+async function send(to: string, subject: string, html: string, unsubUrl?: string): Promise<boolean> {
+  const result = await sendRaw(to, subject, html, unsubUrl);
+  return result.ok;
 }
 
 export async function sendAccessLink(opts: {

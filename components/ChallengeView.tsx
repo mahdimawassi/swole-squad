@@ -60,6 +60,8 @@ export default function ChallengeView({
   const [confirmExit, setConfirmExit] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [rematching, setRematching] = useState(false);
+  const [showGlow, setShowGlow] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -440,21 +442,10 @@ export default function ChallengeView({
             </div>
           </div>
 
-          {today && pace && phase === 'active' && (
-            <div
-              style={{
-                ...card,
-                padding: 12,
-                textAlign: 'center',
-                background: pace.status === 'behind' ? '#FFD9E2' : pace.status === 'ahead' ? '#D9F7E5' : '#FFF3B0',
-              }}
-            >
+          {today && pace && phase === 'active' && pace.status === 'behind' && (
+            <div style={{ ...card, padding: 12, textAlign: 'center', background: '#FFD9E2' }}>
               <div style={{ fontWeight: 800, fontSize: 14 }}>
-                {pace.status === 'behind'
-                  ? `😬 You're behind. ${fmt(pace.perDay)} ${challenge.unit_label}/day gets you there.`
-                  : pace.status === 'ahead'
-                    ? `😎 Ahead of schedule. Coast at ${fmt(pace.perDay)}/day if you want.`
-                    : `🎯 Dead on pace. ${fmt(pace.perDay)} ${challenge.unit_label}/day to finish.`}
+                😬 Behind pace. {fmt(pace.perDay)} {challenge.unit_label}/day gets you there.
               </div>
             </div>
           )}
@@ -563,26 +554,58 @@ export default function ChallengeView({
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-            <Stat emoji="🔥" label="STREAK" value={today ? String(mine?.streak ?? 0) : '—'} />
-            <Stat emoji="🏆" label="RANK" value={`#${myRank || 1}`} />
-            <Stat emoji="📅" label="DAY" value={today ? `${cDay}/${challenge.duration_days}` : '—'} />
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 16,
+              fontSize: 13,
+              fontWeight: 800,
+              marginTop: -6,
+              marginBottom: 16,
+              opacity: 0.8,
+            }}
+          >
+            <span>🔥 {today ? (mine?.streak ?? 0) : '—'}</span>
+            <span>🏆 #{myRank || 1}</span>
+            <span>
+              📅 {today ? `${cDay}/${challenge.duration_days}` : '—'}
+            </span>
           </div>
 
-          <div style={card}>
-            <div style={{ fontFamily: ARCHIVO, fontSize: 16, marginBottom: 12 }}>YOUR GLOW-UP</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4 }}>
-              {[0, 0.25, 0.5, 0.75, 1].map((frac, i) => (
-                <div key={i} style={{ textAlign: 'center', flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <SwoleGuy total={frac * goal} totalGoal={goal} color={user.avatar_color} size={58} style={user.avatar_style} equipped={user.equipped} />
+          <div style={{ ...card, padding: showGlow ? 14 : 10 }}>
+            <button
+              onClick={() => setShowGlow((v) => !v)}
+              style={{
+                width: '100%',
+                background: 'none',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                color: INK,
+                padding: 0,
+              }}
+            >
+              <span style={{ fontFamily: ARCHIVO, fontSize: 14, flex: 1, textAlign: 'left' }}>YOUR GLOW-UP</span>
+              <span style={{ fontSize: 14, fontWeight: 900 }}>{showGlow ? '−' : '+'}</span>
+            </button>
+            {showGlow && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, marginTop: 12 }}>
+                {[0, 0.25, 0.5, 0.75, 1].map((frac, i) => (
+                  <div key={i} style={{ textAlign: 'center', flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'center' }}>
+                      <SwoleGuy total={frac * goal} totalGoal={goal} color={user.avatar_color} size={58} style={user.avatar_style} equipped={user.equipped} />
+                    </div>
+                    <div style={{ fontSize: 10, fontWeight: 800, marginTop: 2 }}>{Math.round(frac * 100)}%</div>
                   </div>
-                  <div style={{ fontSize: 10, fontWeight: 800, marginTop: 2 }}>{Math.round(frac * 100)}%</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
+          {(phase !== 'active' || challenge.duration_days - cDay <= 7) && (
           <div
             style={{
               background: INK,
@@ -600,6 +623,7 @@ export default function ChallengeView({
               {challenge.goal_mode === 'daily' ? ' a day. No excuses.' : ' total. However you get there.'}
             </div>
           </div>
+          )}
         </>
       )}
 
@@ -723,101 +747,13 @@ export default function ChallengeView({
             </a>
           )}
 
-          <div style={card}>
-            <div style={{ fontFamily: ARCHIVO, fontSize: 15, marginBottom: 4 }}>POST TO THE GROUP</div>
-            <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, marginBottom: 12 }}>
-              We write it, you pick where it goes.
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => share(standingsMessage(challenge, shareRows, inviteUrl))}
-                disabled={sharing}
-                className="nb"
-                style={btn('#FFD54A', { flex: '1 1 46%', fontSize: 14, padding: '11px 8px' })}
-              >
-                🏆 Standings
-              </button>
-              <button
-                onClick={() =>
-                  share(
-                    braggingMessage(
-                      challenge,
-                      { name: user.name, total: myTotal, rank: myRank || 1, streak: mine?.streak ?? 0, title: level.title },
-                      inviteUrl,
-                    ),
-                  )
-                }
-                disabled={sharing}
-                className="nb"
-                style={btn('#37C871', { flex: '1 1 46%', color: '#fff', fontSize: 14, padding: '11px 8px' })}
-              >
-                💪 My progress
-              </button>
-              <button
-                onClick={() => share(nudgeMessage(challenge, slackers, inviteUrl))}
-                disabled={sharing}
-                className="nb"
-                style={btn('#fff', { flex: '1 1 46%', fontSize: 14, padding: '11px 8px' })}
-              >
-                👀 Nudge {slackers.length > 0 ? `(${slackers.length})` : ''}
-              </button>
-              <button
-                onClick={() => share(inviteMessage(challenge, inviteUrl))}
-                disabled={sharing || challenge.sharing_enabled === false}
-                className="nb"
-                style={btn('#FF5DA2', {
-                  flex: '1 1 46%',
-                  color: '#fff',
-                  fontSize: 14,
-                  padding: '11px 8px',
-                  opacity: challenge.sharing_enabled === false ? 0.5 : 1,
-                })}
-              >
-                ➕ Invite
-              </button>
-            </div>
-          </div>
-
-          <div style={{ ...card, display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div
-              style={{
-                flex: 1,
-                fontFamily: ARCHIVO,
-                fontSize: 20,
-                letterSpacing: 3,
-                textAlign: 'center',
-                background: '#FFF9E8',
-                border: `3px solid ${INK}`,
-                borderRadius: 12,
-                padding: '8px 4px',
-                opacity: challenge.sharing_enabled === false ? 0.45 : 1,
-              }}
-            >
-              {challenge.invite_code}
-            </div>
-            <button
-              onClick={() => copy(inviteUrl, 'invite')}
-              disabled={challenge.sharing_enabled === false}
-              className="nb"
-              style={btn('#fff', { padding: '11px 14px', fontSize: 13, opacity: challenge.sharing_enabled === false ? 0.5 : 1 })}
-            >
-              {copied === 'invite' ? '✅' : 'Copy link'}
-            </button>
-          </div>
-
-          {challenge.sharing_enabled === false && (
-            <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, textAlign: 'center', marginTop: -6, marginBottom: 14 }}>
-              🔒 Sharing is off, so nobody new can join right now.
-            </div>
-          )}
-
-          {isAdmin && (
-            <div style={{ ...card, background: '#FFF3B0', padding: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 700 }}>
-                👑 You created this one, so you can remove people. Their history is kept, they just drop off the board.
-              </div>
-            </div>
-          )}
+          <button
+            onClick={() => setShareOpen(true)}
+            className="nb"
+            style={btn('#FF5DA2', { width: '100%', color: '#fff', fontSize: 16, marginBottom: 16 })}
+          >
+            📣 SHARE TO THE GROUP
+          </button>
 
           <div style={{ ...card, borderColor: '#C21F3A', boxShadow: '6px 6px 0 #C21F3A' }}>
             <div style={{ fontFamily: ARCHIVO, fontSize: 15, marginBottom: 6 }}>
@@ -853,6 +789,123 @@ export default function ChallengeView({
             )}
           </div>
         </>
+      )}
+
+      {shareOpen && (
+        <div
+          onClick={() => setShareOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(20,20,20,.55)',
+            zIndex: 90,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#fff',
+              border: `3px solid ${INK}`,
+              borderRadius: '20px 20px 0 0',
+              padding: 20,
+              width: '100%',
+              maxWidth: 480,
+            }}
+          >
+            <div style={{ fontFamily: ARCHIVO, fontSize: 17, marginBottom: 4 }}>SHARE TO THE GROUP</div>
+            <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, marginBottom: 14 }}>
+              We write it, you pick where it goes.
+            </div>
+
+            {[
+              { key: 'standings', label: '🏆 The standings', build: () => standingsMessage(challenge, shareRows, inviteUrl) },
+              {
+                key: 'progress',
+                label: '💪 My progress',
+                build: () =>
+                  braggingMessage(
+                    challenge,
+                    { name: user.name, total: myTotal, rank: myRank || 1, streak: mine?.streak ?? 0, title: level.title },
+                    inviteUrl,
+                  ),
+              },
+              {
+                key: 'nudge',
+                label: `👀 Nudge whoever's slacking${slackers.length ? ` (${slackers.length})` : ''}`,
+                build: () => nudgeMessage(challenge, slackers, inviteUrl),
+              },
+              { key: 'invite', label: '➕ Invite someone', build: () => inviteMessage(challenge, inviteUrl), locked: challenge.sharing_enabled === false },
+            ].map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => {
+                  share(opt.build());
+                  setShareOpen(false);
+                }}
+                disabled={sharing || opt.locked}
+                className="nb"
+                style={btn('#fff', {
+                  width: '100%',
+                  fontSize: 15,
+                  marginBottom: 8,
+                  textAlign: 'left',
+                  opacity: opt.locked ? 0.45 : 1,
+                })}
+              >
+                {opt.label}
+              </button>
+            ))}
+
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+                marginTop: 14,
+                paddingTop: 14,
+                borderTop: `2px solid rgba(20,20,20,.15)`,
+              }}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  fontFamily: ARCHIVO,
+                  fontSize: 18,
+                  letterSpacing: 3,
+                  textAlign: 'center',
+                  background: '#FFF9E8',
+                  border: `3px solid ${INK}`,
+                  borderRadius: 12,
+                  padding: '8px 4px',
+                  opacity: challenge.sharing_enabled === false ? 0.45 : 1,
+                }}
+              >
+                {challenge.invite_code}
+              </div>
+              <button
+                onClick={() => copy(inviteUrl, 'invite')}
+                disabled={challenge.sharing_enabled === false}
+                className="nb"
+                style={btn('#4D7CFF', { color: '#fff', padding: '11px 14px', fontSize: 13 })}
+              >
+                {copied === 'invite' ? '✅' : 'Copy link'}
+              </button>
+            </div>
+
+            {challenge.sharing_enabled === false && (
+              <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7, textAlign: 'center', marginTop: 10 }}>
+                🔒 Sharing is off, so nobody new can join.
+              </div>
+            )}
+
+            <button onClick={() => setShareOpen(false)} className="nb" style={btn('#fff', { width: '100%', marginTop: 14 })}>
+              Close
+            </button>
+          </div>
+        </div>
       )}
 
       {toast && (
