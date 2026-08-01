@@ -238,3 +238,22 @@ create unique index if not exists idx_loot_unique_source on loot_boxes(user_id, 
 alter table user_badges enable row level security;
 alter table user_items enable row level security;
 alter table loot_boxes enable row level security;
+
+-- ---------- v7: activity feed + push preferences ----------
+alter table users add column if not exists push_reminders boolean not null default true;
+alter table users add column if not exists push_social boolean not null default true;
+
+create table if not exists notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  type text not null,
+  title text not null,
+  body text,
+  url text,
+  icon text,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_notifications_user on notifications(user_id, created_at desc);
+create index if not exists idx_notifications_unread on notifications(user_id) where read_at is null;
+alter table notifications enable row level security;
