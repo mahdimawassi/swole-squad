@@ -5,11 +5,15 @@ import { useRouter } from 'next/navigation';
 import SwoleGuy from './SwoleGuy';
 import Header from './Header';
 import { usePrefetch } from './Nav';
+import { isStandalone } from '@/lib/pushClient';
 import { INK, ARCHIVO, PAGE, card, btn } from '@/lib/ui';
 
 export default function Landing() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
+  // An installed Home Screen app that lands here has no saved identity, which
+  // on iPhone usually means it was installed from the wrong page.
+  const [installedButLost, setInstalledButLost] = useState(false);
 
   useEffect(() => {
     try {
@@ -24,6 +28,7 @@ export default function Landing() {
     } catch {
       // ignore
     }
+    setInstalledButLost(isStandalone());
     setChecking(false);
   }, [router]);
 
@@ -34,6 +39,32 @@ export default function Landing() {
       <main style={PAGE}>
         <Header />
         <div style={{ ...card, textAlign: 'center', fontWeight: 700 }}>One sec…</div>
+      </main>
+    );
+  }
+
+  if (installedButLost) {
+    return (
+      <main style={PAGE}>
+        <Header />
+        <div style={{ ...card, textAlign: 'center' }}>
+          <div style={{ fontSize: 40 }}>🔑</div>
+          <div style={{ fontFamily: ARCHIVO, fontSize: 20, margin: '8px 0' }}>ONE LAST STEP</div>
+          <p style={{ fontWeight: 600, fontSize: 14, marginTop: 0 }}>
+            This app does not know who you are yet. Open your personal Swole Squad link once from here (it is in
+            the email we sent you) and it will remember you from then on.
+          </p>
+          <p style={{ fontWeight: 600, fontSize: 13, opacity: 0.75, marginBottom: 0 }}>
+            Do not create a second account, or your history will be split in two.
+          </p>
+        </div>
+        <button
+          onClick={() => router.push('/link')}
+          className="nb"
+          style={btn('#4D7CFF', { width: '100%', color: '#fff', fontSize: 17 })}
+        >
+          EMAIL ME MY LINK
+        </button>
       </main>
     );
   }

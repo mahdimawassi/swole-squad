@@ -98,8 +98,8 @@ export default function InstallPrompt({ token, active }: { token: string; active
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: ARCHIVO, fontSize: 16 }}>NEVER MISS A DAY</div>
             <p style={{ fontWeight: 600, fontSize: 13, margin: '4px 0 0' }}>
-              Add Swole Squad to your Home Screen and we can nudge you if you forget to log. Takes about ten
-              seconds.
+              Add Swole Squad to your Home Screen and we can nudge you if you forget to log. The icon opens
+              straight into your own squad, no signing in. Takes about ten seconds.
             </p>
           </div>
           <button onClick={dismiss} aria-label="Dismiss" style={xStyle}>
@@ -110,7 +110,8 @@ export default function InstallPrompt({ token, active }: { token: string; active
         {howTo ? (
           <ol style={{ margin: '14px 0 0', paddingLeft: 20, fontWeight: 600, fontSize: 13, lineHeight: 1.7 }}>
             <li>
-              Tap the <b>Share</b> button <span style={{ fontSize: 15 }}>⬆️</span> at the bottom of Safari
+              Stay on <b>this page</b>, then tap <b>Share</b> <span style={{ fontSize: 15 }}>⬆️</span> at the
+              bottom of Safari
             </li>
             <li>
               Scroll down and tap <b>Add to Home Screen</b>
@@ -132,7 +133,8 @@ export default function InstallPrompt({ token, active }: { token: string; active
 
         {howTo && (
           <p style={{ fontSize: 12, fontWeight: 600, opacity: 0.7, marginBottom: 0, marginTop: 10 }}>
-            Safari only, so if you are in Chrome open this page in Safari first.
+            Safari only, so if you are in Chrome open this page in Safari first. Adding it from this page is what
+            links the icon to your account.
           </p>
         )}
       </div>
