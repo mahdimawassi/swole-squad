@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdmin } from '@/lib/supabaseAdmin';
 import { getUserByToken, getChallengeById } from '@/lib/data';
 import { daysBetween } from '@/lib/challenge';
+import { evaluateAndAward } from '@/lib/progress';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -54,7 +55,27 @@ export async function POST(req: Request) {
     });
     if (error) return NextResponse.json({ error: 'Could not save.' }, { status: 500 });
 
-    return NextResponse.json({ ok: true });
+    // Remember what time it was for THEM, which is what the early bird and night
+    // owl badges key off. Only the first log of a day sets it.
+    const hour = Math.floor(Number(body?.local_hour));
+    if (Number.isFinite(hour) && hour >= 0 && hour <= 23) {
+      await supabase
+        .from('logs')
+        .update({ local_hour: hour })
+        .eq('participant_id', participant.id)
+        .eq('day_date', day)
+        .is('local_hour', null);
+    }
+
+    // Badges are checked after every log, so unlocking one is immediate.
+    let awarded = { newBadges: [] as string[], newBoxes: 0 };
+    try {
+      awarded = await evaluateAndAward(user.id);
+    } catch {
+      // Never let the celebration layer break the actual logging.
+    }
+
+    return NextResponse.json({ ok: true, ...awarded });
   } catch {
     return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
   }

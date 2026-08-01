@@ -198,3 +198,109 @@ select {
     transition: none;
   }
 }
+
+/* ---------- loot box opening ---------- */
+.box-idle {
+  animation: boxBob 2.4s ease-in-out infinite;
+}
+@keyframes boxBob {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-6px) rotate(1deg); }
+}
+
+/* Anticipation: shake harder and harder, then the burst. */
+.box-shaking {
+  animation: boxShake 1.15s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+@keyframes boxShake {
+  0% { transform: translateX(0) rotate(0deg) scale(1); }
+  10% { transform: translateX(-3px) rotate(-3deg) scale(1.02); }
+  20% { transform: translateX(3px) rotate(3deg) scale(1.02); }
+  30% { transform: translateX(-5px) rotate(-5deg) scale(1.05); }
+  40% { transform: translateX(5px) rotate(5deg) scale(1.05); }
+  50% { transform: translateX(-7px) rotate(-7deg) scale(1.08); }
+  60% { transform: translateX(7px) rotate(7deg) scale(1.08); }
+  70% { transform: translateX(-9px) rotate(-9deg) scale(1.12); }
+  80% { transform: translateX(9px) rotate(9deg) scale(1.14); }
+  90% { transform: translateX(0) rotate(0deg) scale(1.2); }
+  100% { transform: scale(0.2); opacity: 0; }
+}
+
+.box-flash {
+  animation: boxFlash 0.55s ease-out forwards;
+}
+@keyframes boxFlash {
+  0% { opacity: 0; transform: scale(0.2); }
+  35% { opacity: 1; transform: scale(1.6); }
+  100% { opacity: 0; transform: scale(2.6); }
+}
+
+.reveal-item {
+  animation: revealPop 0.62s cubic-bezier(0.2, 1.6, 0.35, 1) backwards;
+}
+@keyframes revealPop {
+  0% { opacity: 0; transform: scale(0.3) translateY(20px); }
+  60% { opacity: 1; transform: scale(1.12) translateY(-4px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.reveal-text {
+  animation: revealPop 0.5s 0.18s cubic-bezier(0.2, 1.5, 0.4, 1) backwards;
+}
+
+/* Rays behind a rare-or-better pull. */
+.reveal-rays {
+  animation: raySpin 9s linear infinite;
+  transform-origin: 50% 50%;
+}
+@keyframes raySpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.confetti-bit {
+  position: absolute;
+  width: 9px;
+  height: 14px;
+  border: 2px solid #141414;
+  animation: confettiFall 1.5s ease-in forwards;
+}
+@keyframes confettiFall {
+  0% { opacity: 1; transform: translateY(-10px) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(230px) rotate(540deg); }
+}
+
+/* Badge unlock toast */
+.badge-pop {
+  animation: badgePop 0.55s cubic-bezier(0.2, 1.6, 0.35, 1);
+}
+@keyframes badgePop {
+  0% { transform: scale(0.5) rotate(-12deg); opacity: 0; }
+  70% { transform: scale(1.1) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* Item auras on the avatar */
+.aura-sparkle { animation: auraTwinkle 2.6s ease-in-out infinite; }
+@keyframes auraTwinkle {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+.aura-flames { animation: auraFlicker 0.9s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes auraFlicker {
+  0%, 100% { transform: scaleY(1) scaleX(1); }
+  50% { transform: scaleY(1.1) scaleX(0.95); }
+}
+.aura-lightning { animation: auraZap 3.4s steps(1) infinite; }
+@keyframes auraZap {
+  0%, 88%, 100% { opacity: 1; }
+  90%, 94% { opacity: 0.15; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .box-idle, .box-shaking, .box-flash, .reveal-item, .reveal-text,
+  .reveal-rays, .confetti-bit, .badge-pop,
+  .aura-sparkle, .aura-flames, .aura-lightning {
+    animation: none;
+  }
+}

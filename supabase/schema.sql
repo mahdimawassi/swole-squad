@@ -184,3 +184,57 @@ begin
   delete from reactions where id = v_id;
   return false;
 end; $$;
+
+-- ---------- v5: push notifications ----------
+create table if not exists push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  user_agent text,
+  created_at timestamptz not null default now(),
+  last_used timestamptz
+);
+create index if not exists idx_push_user on push_subscriptions(user_id);
+alter table push_subscriptions enable row level security;
+
+-- ---------- v6: email prefs, badges, items, loot boxes ----------
+alter table users add column if not exists email_reminders boolean not null default false;
+alter table users add column if not exists email_activity boolean not null default false;
+alter table users add column if not exists email_unsubscribed boolean not null default false;
+alter table users add column if not exists equipped jsonb not null default '{}'::jsonb;
+alter table logs add column if not exists local_hour int;
+
+create table if not exists user_badges (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  badge_key text not null,
+  earned_at timestamptz not null default now(),
+  unique (user_id, badge_key)
+);
+create index if not exists idx_user_badges_user on user_badges(user_id);
+
+create table if not exists user_items (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  item_key text not null,
+  obtained_at timestamptz not null default now(),
+  unique (user_id, item_key)
+);
+create index if not exists idx_user_items_user on user_items(user_id);
+
+create table if not exists loot_boxes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  source text not null,
+  created_at timestamptz not null default now(),
+  opened_at timestamptz,
+  item_key text
+);
+create index if not exists idx_loot_user_unopened on loot_boxes(user_id) where opened_at is null;
+create unique index if not exists idx_loot_unique_source on loot_boxes(user_id, source);
+
+alter table user_badges enable row level security;
+alter table user_items enable row level security;
+alter table loot_boxes enable row level security;

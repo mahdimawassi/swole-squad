@@ -25,7 +25,7 @@ function button(href: string, label: string): string {
   return `<a href="${href}" style="display:inline-block;background:#FF5DA2;color:#fff;text-decoration:none;border:3px solid ${INK};border-radius:14px;padding:13px 20px;font-weight:900;font-size:16px">${label}</a>`;
 }
 
-async function send(to: string, subject: string, html: string): Promise<boolean> {
+async function send(to: string, subject: string, html: string, unsubUrl?: string): Promise<boolean> {
   if (!emailEnabled()) return false;
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -34,7 +34,14 @@ async function send(to: string, subject: string, html: string): Promise<boolean>
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [to], subject, html }),
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM,
+        to: [to],
+        subject,
+        html,
+        // Lets mail clients show their own one-click unsubscribe control.
+        headers: unsubUrl ? { 'List-Unsubscribe': `<${unsubUrl}>` } : undefined,
+      }),
     });
     return res.ok;
   } catch {
@@ -63,8 +70,12 @@ export async function sendAccessLink(opts: {
     ${button(link, 'OPEN MY CHALLENGES →')}
     <p style="font-size:12px;opacity:.7;margin:18px 0 0;word-break:break-all">${link}</p>
     ${invite}
+    <p style="font-size:11px;opacity:.6;margin:22px 0 0">
+      <a href="${link}/email" style="color:#141414">Choose what we email you</a>
+    </p>
   `);
-  return send(to, challengeName ? `You're in: ${challengeName} 💪` : 'Your Swole Squad link 💪', html);
+  const prefsUrl = `${link}/email`;
+  return send(to, challengeName ? `You're in: ${challengeName} 💪` : 'Your Swole Squad link 💪', html, prefsUrl);
 }
 
 export { isEmail } from './challenge';

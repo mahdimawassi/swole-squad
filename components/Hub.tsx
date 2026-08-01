@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import SwoleGuy from './SwoleGuy';
 import Header from './Header';
 import EmailGate from './EmailGate';
+import InstallPrompt from './InstallPrompt';
 import { usePrefetch } from './Nav';
 import {
   getSwole,
@@ -29,10 +30,14 @@ export default function Hub({
   user,
   entries,
   justCreated,
+  boxCount = 0,
+  badgeCount = 0,
 }: {
   user: User;
   entries: HubEntry[];
   justCreated?: string;
+  boxCount?: number;
+  badgeCount?: number;
 }) {
   const router = useRouter();
   const [today, setToday] = useState('');
@@ -143,6 +148,10 @@ export default function Hub({
               : undefined
         }
       />
+
+      {/* Only nag once they are actually in something, and never on top of the
+          email prompt, which matters more. */}
+      {user.email && <InstallPrompt token={user.secret_token} active={entries.length > 0} />}
 
       {showBanner && justCreated && (
         <div style={{ ...card, background: '#FFF3B0', padding: 16 }}>
@@ -362,7 +371,34 @@ export default function Hub({
         );
       })}
 
-      <p style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, opacity: 0.65, marginTop: 18 }}>
+      <button
+        onClick={() => router.push(`/me/${user.secret_token}/collection`)}
+        className="nb"
+        style={{
+          ...card,
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          cursor: 'pointer',
+          textAlign: 'left',
+          fontFamily: 'inherit',
+          background: boxCount > 0 ? '#FFF3B0' : '#fff',
+        }}
+      >
+        <div style={{ fontSize: 26 }}>{boxCount > 0 ? '🎁' : '🏅'}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: ARCHIVO, fontSize: 15 }}>
+            {boxCount > 0 ? `${boxCount} ${boxCount === 1 ? 'BOX' : 'BOXES'} TO OPEN` : 'BADGES & ITEMS'}
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7 }}>
+            {boxCount > 0 ? 'Something new for your guy' : `${badgeCount} badges earned`}
+          </div>
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 900 }}>→</div>
+      </button>
+
+      <p style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, opacity: 0.65, marginTop: 4 }}>
         Bookmark this page. It&rsquo;s your key, and it works on any device.
       </p>
 

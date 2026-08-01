@@ -59,6 +59,7 @@ export default function ChallengeView({
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [rematching, setRematching] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -232,6 +233,30 @@ export default function ChallengeView({
     }
   }
 
+  // Start the same challenge again with the same crew. This is the answer to a
+  // challenge ending and everyone quietly drifting away.
+  async function runItBack() {
+    if (rematching) return;
+    setRematching(true);
+    try {
+      const res = await fetch('/api/rematch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: user.secret_token, challenge_id: challenge.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data?.error || 'Could not start it.');
+        setRematching(false);
+        return;
+      }
+      router.push(`/me/${user.secret_token}?new=${data.invite_code}`);
+    } catch {
+      showToast('Network error.');
+      setRematching(false);
+    }
+  }
+
   async function share(text: string) {
     if (sharing) return;
     setSharing(true);
@@ -329,6 +354,57 @@ export default function ChallengeView({
 
       {tab === 'me' && (
         <>
+          {phase === 'done' && (
+            <div style={{ ...card, background: '#FFF3B0', textAlign: 'center' }}>
+              <div style={{ fontSize: 34 }}>🏁</div>
+              <div style={{ fontFamily: ARCHIVO, fontSize: 20, marginTop: 2 }}>THAT&rsquo;S A WRAP</div>
+              <p style={{ fontWeight: 600, fontSize: 13, margin: '6px 0 12px' }}>
+                {ranked[0] ? `${ranked[0].member.name} took it with ${fmt(ranked[0].total)} ${challenge.unit_label}.` : 'Challenge complete.'}
+                {myRank ? ` You finished #${myRank}.` : ''}
+              </p>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+                {ranked.slice(0, 3).map((r, i) => (
+                  <div
+                    key={r.member.participant_id}
+                    style={{
+                      background: '#fff',
+                      border: `2px solid ${INK}`,
+                      borderRadius: 12,
+                      padding: '8px 12px',
+                      minWidth: 92,
+                    }}
+                  >
+                    <div style={{ fontSize: 18 }}>{['🥇', '🥈', '🥉'][i]}</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.member.name}
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.7 }}>{fmt(r.total)}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={runItBack}
+                  disabled={rematching}
+                  className="nb"
+                  style={btn('#37C871', { flex: 1, color: '#fff', fontSize: 15, opacity: rematching ? 0.6 : 1 })}
+                >
+                  {rematching ? 'STARTING…' : '🔁 RUN IT BACK'}
+                </button>
+                <button
+                  onClick={() => share(standingsMessage(challenge, shareRows, inviteUrl))}
+                  disabled={sharing}
+                  className="nb"
+                  style={btn('#fff', { flex: 1, fontSize: 15 })}
+                >
+                  📣 Share results
+                </button>
+              </div>
+            </div>
+          )}
+
           <div style={{ ...card, textAlign: 'center' }}>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <SwoleGuy total={myTotal} totalGoal={goal} color={user.avatar_color} size={185} flexing={flexing} style={user.avatar_style} />

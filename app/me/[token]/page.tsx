@@ -1,6 +1,6 @@
 import Hub from '@/components/Hub';
 import Notice from '@/components/Notice';
-import { getUserByToken, getMyChallenges, getMembers, getLogsFor } from '@/lib/data';
+import { getUserByToken, getMyChallenges, getMembers, getLogsFor, getUnopenedBoxes, getUserBadges } from '@/lib/data';
 import { computeStats, todayStr } from '@/lib/challenge';
 import type { HubEntry } from '@/lib/types';
 
@@ -49,5 +49,15 @@ export default async function HubPage({
     }),
   );
 
-  return <Hub user={user} entries={entries} justCreated={justCreated} />;
+  const [boxes, badges] = await Promise.all([getUnopenedBoxes(user.id), getUserBadges(user.id)]);
+
+  return (
+    <Hub
+      user={user}
+      entries={entries}
+      justCreated={justCreated}
+      boxCount={boxes.length}
+      badgeCount={badges.length}
+    />
+  );
 }

@@ -6,8 +6,12 @@ export type User = {
   name: string;
   avatar_color: string;
   avatar_style?: string;
+  equipped?: Record<string, string>;
   secret_token: string;
   reminders_opt_out?: boolean;
+  email_reminders?: boolean;
+  email_activity?: boolean;
+  email_unsubscribed?: boolean;
   created_at?: string;
 };
 
@@ -34,6 +38,7 @@ export type Member = {
   name: string;
   avatar_color: string;
   avatar_style?: string;
+  equipped?: Record<string, string>;
   joined_at?: string;
 };
 

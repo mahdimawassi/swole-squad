@@ -56,7 +56,7 @@ export async function getMembers(challengeId: string): Promise<Member[]> {
   const supabase = getAdmin();
   const { data } = await supabase
     .from('participants')
-    .select('id, user_id, joined_at, users(name, avatar_color, avatar_style)')
+    .select('id, user_id, joined_at, users(name, avatar_color, avatar_style, equipped)')
     .eq('challenge_id', challengeId)
     .is('removed_at', null)
     .order('joined_at', { ascending: true });
@@ -66,8 +66,8 @@ export async function getMembers(challengeId: string): Promise<Member[]> {
     user_id: string;
     joined_at: string;
     users:
-      | { name: string; avatar_color: string; avatar_style: string }
-      | { name: string; avatar_color: string; avatar_style: string }[]
+      | { name: string; avatar_color: string; avatar_style: string; equipped: Record<string, string> }
+      | { name: string; avatar_color: string; avatar_style: string; equipped: Record<string, string> }[]
       | null;
   }[];
 
@@ -79,6 +79,7 @@ export async function getMembers(challengeId: string): Promise<Member[]> {
       name: u?.name ?? 'Someone',
       avatar_color: u?.avatar_color ?? '#4D7CFF',
       avatar_style: u?.avatar_style ?? 'classic',
+      equipped: u?.equipped ?? {},
       joined_at: r.joined_at,
     };
   });
@@ -150,4 +151,32 @@ export async function getReactions(
     if (r.created_at > cell.latest) cell.latest = r.created_at;
   }
   return out;
+}
+
+// ---------- badges, items, boxes ----------
+export async function getUserBadges(userId: string): Promise<{ badge_key: string; earned_at: string }[]> {
+  const supabase = getAdmin();
+  const { data } = await supabase
+    .from('user_badges')
+    .select('badge_key, earned_at')
+    .eq('user_id', userId)
+    .order('earned_at', { ascending: false });
+  return (data ?? []) as { badge_key: string; earned_at: string }[];
+}
+
+export async function getUserItems(userId: string): Promise<string[]> {
+  const supabase = getAdmin();
+  const { data } = await supabase.from('user_items').select('item_key').eq('user_id', userId);
+  return (data ?? []).map((r: { item_key: string }) => r.item_key);
+}
+
+export async function getUnopenedBoxes(userId: string): Promise<{ id: string; source: string }[]> {
+  const supabase = getAdmin();
+  const { data } = await supabase
+    .from('loot_boxes')
+    .select('id, source')
+    .eq('user_id', userId)
+    .is('opened_at', null)
+    .order('created_at', { ascending: true });
+  return (data ?? []) as { id: string; source: string }[];
 }

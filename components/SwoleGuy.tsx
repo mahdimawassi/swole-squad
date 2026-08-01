@@ -1,4 +1,5 @@
 import { getSwole, clamp, lerp } from '@/lib/challenge';
+import { AuraItem, BackItem, FeetItem, HeldItem, HeadItem, FaceItem, geoFor, type Equipped } from './AvatarItems';
 
 const INK = '#141414';
 
@@ -21,6 +22,7 @@ export default function SwoleGuy({
   size = 180,
   flexing = false,
   style = 'classic',
+  equipped,
 }: {
   total: number;
   totalGoal: number;
@@ -28,10 +30,13 @@ export default function SwoleGuy({
   size?: number;
   flexing?: boolean;
   style?: string;
+  equipped?: Equipped;
 }) {
   const { f } = getSwole(total, totalGoal);
   const s = clamp(f, 0, 1);
   const peak = totalGoal > 0 && total / totalGoal >= 0.8;
+  const eq: Equipped = equipped ?? {};
+  const g = geoFor(s);
 
   return (
     <svg
@@ -39,11 +44,22 @@ export default function SwoleGuy({
       width={size}
       height={(size * 220) / 200}
       className={flexing ? 'flexing' : undefined}
-      style={{ display: 'block' }}
+      style={{ display: 'block', overflow: 'visible' }}
     >
+      {/* aura and back gear sit behind the body */}
+      <AuraItem item={eq.aura} g={g} />
       {peak && <ellipse cx="100" cy="118" rx="92" ry="104" fill="#FFD54A" opacity="0.4" />}
-      <Body s={s} color={color} peak={peak} style={style} />
-      {peak && (
+      <BackItem item={eq.back} g={g} color={color} />
+
+      <Body s={s} color={color} peak={peak} style={style} hasFaceItem={Boolean(eq.face)} />
+
+      {/* worn gear on top */}
+      <FeetItem item={eq.feet} g={g} />
+      <HeldItem item={eq.held} g={g} />
+      <FaceItem item={eq.face} g={g} />
+      <HeadItem item={eq.head} g={g} color={color} />
+
+      {peak && !eq.aura && (
         <text x="150" y="70" fontSize="18">
           ✨
         </text>
@@ -52,7 +68,19 @@ export default function SwoleGuy({
   );
 }
 
-function Body({ s, color, peak, style }: { s: number; color: string; peak: boolean; style: string }) {
+function Body({
+  s,
+  color,
+  peak,
+  style,
+  hasFaceItem,
+}: {
+  s: number;
+  color: string;
+  peak: boolean;
+  style: string;
+  hasFaceItem?: boolean;
+}) {
   const skin = '#F4C89B';
   const skinDark = '#DDA778';
 
@@ -153,7 +181,7 @@ function Body({ s, color, peak, style }: { s: number; color: string; peak: boole
         <circle cx={cx} cy="48" r="24" fill={fur} stroke={INK} strokeWidth="3" />
       )}
 
-      <Head style={style} color={color} furDark={furDark} peak={peak} grin={grin} s={s} />
+      <Head style={style} color={color} furDark={furDark} peak={peak} grin={grin} s={s} hasFaceItem={hasFaceItem} />
     </>
   );
 }
@@ -165,6 +193,7 @@ function Head({
   peak,
   grin,
   s,
+  hasFaceItem,
 }: {
   style: string;
   color: string;
@@ -172,8 +201,10 @@ function Head({
   peak: boolean;
   grin: number;
   s: number;
+  hasFaceItem?: boolean;
 }) {
-  const eyes = peak ? (
+  // A face item replaces the drawn eyes, otherwise they show through it.
+  const eyes = hasFaceItem ? null : peak ? (
     <>
       <rect x="83" y="44" width="34" height="11" rx="4" fill={INK} />
       <rect x="86" y="46" width="7" height="3" rx="1.5" fill="#fff" opacity="0.7" />
@@ -243,7 +274,7 @@ function Head({
       )}
 
       {/* the classic sunglasses-glint once swole (non-robot) */}
-      {s > 0.05 && style !== 'robot' && !peak && (
+      {s > 0.05 && style !== 'robot' && !peak && !hasFaceItem && (
         <ellipse cx="120" cy="53" rx="2.6" ry="4" fill="#5AB2FF" stroke={INK} strokeWidth="1" />
       )}
     </>

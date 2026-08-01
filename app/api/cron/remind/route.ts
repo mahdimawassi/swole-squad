@@ -3,6 +3,7 @@ import { getAdmin } from '@/lib/supabaseAdmin';
 import { computeStats, needsYouToday, todayStr, goalLabel, emojiFor } from '@/lib/challenge';
 import type { Challenge, Member, LogRow } from '@/lib/types';
 import { emailEnabled } from '@/lib/email';
+import { sendPushToUser, pushEnabled } from '@/lib/push';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -10,12 +11,14 @@ export const maxDuration = 60;
 // Midday reminder. Vercel Cron calls this on a schedule (see vercel.json).
 // For each ACTIVE daily-goal challenge, it emails members who have not yet met
 // today's target and have not opted out, at most once per person per day.
-async function run(): Promise<{ sent: number; skipped: number }> {
-  if (!emailEnabled()) return { sent: 0, skipped: 0 };
+async function run(): Promise<{ pushed: number; emailed: number; skipped: number }> {
+  // Nothing to do if neither channel is configured.
+  if (!emailEnabled() && !pushEnabled()) return { pushed: 0, emailed: 0, skipped: 0 };
 
   const supabase = getAdmin();
   const today = todayStr();
-  let sent = 0;
+  let pushed = 0;
+  let emailed = 0;
   let skipped = 0;
 
   // Active challenges only, and only daily goals (a "total" goal has no daily duty).
@@ -31,7 +34,7 @@ async function run(): Promise<{ sent: number; skipped: number }> {
   for (const challenge of challenges) {
     const { data: partRows } = await supabase
       .from('participants')
-      .select('id, user_id, users(name, email, avatar_color, reminders_opt_out)')
+      .select('id, user_id, users(name, email, avatar_color, email_reminders, email_unsubscribed)')
       .eq('challenge_id', challenge.id)
       .is('removed_at', null);
 
@@ -39,8 +42,8 @@ async function run(): Promise<{ sent: number; skipped: number }> {
       id: string;
       user_id: string;
       users:
-        | { name: string; email: string | null; avatar_color: string; reminders_opt_out: boolean }
-        | { name: string; email: string | null; avatar_color: string; reminders_opt_out: boolean }[]
+        | { name: string; email: string | null; avatar_color: string; email_reminders: boolean; email_unsubscribed: boolean }
+        | { name: string; email: string | null; avatar_color: string; email_reminders: boolean; email_unsubscribed: boolean }[]
         | null;
     }[];
     if (parts.length === 0) continue;
@@ -62,7 +65,7 @@ async function run(): Promise<{ sent: number; skipped: number }> {
 
     for (const p of parts) {
       const u = Array.isArray(p.users) ? p.users[0] : p.users;
-      if (!u || !u.email || u.reminders_opt_out) {
+      if (!u) {
         skipped += 1;
         continue;
       }
@@ -84,13 +87,31 @@ async function run(): Promise<{ sent: number; skipped: number }> {
       }
 
       const origin = process.env.APP_ORIGIN || '';
-      const link = origin ? `${origin}/me/${await tokenFor(p.user_id)}` : '';
-      await sendReminder(u.email, u.name, challenge, link);
-      sent += 1;
+      const token = await tokenFor(p.user_id);
+      const link = origin ? `${origin}/me/${token}` : '';
+
+      // Prefer a phone notification. It gets seen, it is free, and it keeps the
+      // inbox quiet. Email is the fallback for anyone who has not enabled push.
+      const delivered = await sendPushToUser(p.user_id, {
+        title: `${emojiFor(challenge.activity)} Still to do today`,
+        body: `You have not hit today's goal in ${challenge.name}: ${goalLabel(challenge)}. Do not break the streak.`,
+        url: link || '/',
+        tag: `remind-${challenge.id}`,
+      });
+
+      if (delivered > 0) {
+        // A phone notification landed, so no email. Push is the opt-in.
+        pushed += 1;
+      } else if (u.email && u.email_reminders && !u.email_unsubscribed && emailEnabled()) {
+        await sendReminder(u.email, u.name, challenge, link, token);
+        emailed += 1;
+      } else {
+        skipped += 1;
+      }
     }
   }
 
-  return { sent, skipped };
+  return { pushed, emailed, skipped };
 }
 
 async function tokenFor(userId: string): Promise<string> {
@@ -99,8 +120,15 @@ async function tokenFor(userId: string): Promise<string> {
   return data?.secret_token ?? '';
 }
 
-async function sendReminder(to: string, name: string, challenge: Challenge, link: string): Promise<void> {
+async function sendReminder(
+  to: string,
+  name: string,
+  challenge: Challenge,
+  link: string,
+  token: string,
+): Promise<void> {
   const INK = '#141414';
+  const origin = process.env.APP_ORIGIN || '';
   const button = link
     ? `<a href="${link}" style="display:inline-block;background:#37C871;color:#fff;text-decoration:none;border:3px solid ${INK};border-radius:14px;padding:13px 20px;font-weight:900;font-size:16px">LOG IT NOW →</a>`
     : '';
@@ -110,13 +138,24 @@ async function sendReminder(to: string, name: string, challenge: Challenge, link
       <p style="font-size:16px;font-weight:600;margin:0 0 8px">Hey ${escapeHtml(name)},</p>
       <p style="font-size:15px;font-weight:500;margin:0 0 18px">You haven't hit today's goal in <b>${escapeHtml(challenge.name)}</b> yet: ${escapeHtml(goalLabel(challenge))}. Half the day's gone, don't break the streak.</p>
       ${button}
+      <p style="font-size:11px;opacity:.6;margin:20px 0 0">
+        <a href="${origin}/me/${token}/email" style="color:#141414">Change what we email you</a>
+      </p>
     </div>
   </div>`;
   try {
     await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [to], subject: `Don't break your streak 💪`, html }),
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM,
+        to: [to],
+        subject: `Don't break your streak 💪`,
+        html,
+        headers: origin
+          ? { 'List-Unsubscribe': `<${origin}/me/${token}/email>` }
+          : undefined,
+      }),
     });
   } catch {
     // best effort
@@ -137,6 +176,12 @@ function authorized(req: Request): boolean {
 
 export async function GET(req: Request) {
   if (!authorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const result = await run();
-  return NextResponse.json({ ok: true, ...result });
+  try {
+    const result = await run();
+    return NextResponse.json({ ok: true, ...result });
+  } catch (err) {
+    // A scheduled job should report a problem, not crash the deployment.
+    const message = err instanceof Error ? err.message : 'Reminder run failed.';
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
 }

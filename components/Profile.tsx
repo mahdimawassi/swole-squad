@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SwoleGuy, { AVATAR_STYLES } from './SwoleGuy';
+import NotificationSettings from './NotificationSettings';
 import Header from './Header';
 import { AVATAR_COLORS, isEmail } from '@/lib/challenge';
 import type { User } from '@/lib/types';
@@ -14,7 +15,6 @@ export default function Profile({ user, challengeCount }: { user: User; challeng
   const [email, setEmail] = useState(user.email ?? '');
   const [color, setColor] = useState(user.avatar_color);
   const [avatarStyle, setAvatarStyle] = useState(user.avatar_style ?? 'classic');
-  const [remindersOff, setRemindersOff] = useState(user.reminders_opt_out === true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -24,8 +24,7 @@ export default function Profile({ user, challengeCount }: { user: User; challeng
     name.trim() !== user.name ||
     email.trim().toLowerCase() !== (user.email ?? '') ||
     color !== user.avatar_color ||
-    avatarStyle !== (user.avatar_style ?? 'classic') ||
-    remindersOff !== (user.reminders_opt_out === true);
+    avatarStyle !== (user.avatar_style ?? 'classic');
   const valid = name.trim().length > 0 && isEmail(email);
 
   async function save() {
@@ -43,7 +42,6 @@ export default function Profile({ user, challengeCount }: { user: User; challeng
           email: email.trim().toLowerCase(),
           avatar_color: color,
           avatar_style: avatarStyle,
-          reminders_opt_out: remindersOff,
         }),
       });
       const data = await res.json();
@@ -166,32 +164,33 @@ export default function Profile({ user, challengeCount }: { user: User; challeng
         </div>
       </div>
 
-      <div style={{ ...card, display: 'flex', alignItems: 'center', gap: 12 }}>
+      <button
+        onClick={() => router.push(`/me/${user.secret_token}/collection`)}
+        className="nb"
+        style={{ ...card, width: '100%', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', background: '#fff' }}
+      >
+        <div style={{ fontSize: 24 }}>🏅</div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: ARCHIVO, fontSize: 15 }}>DAILY REMINDERS</div>
-          <div style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, marginTop: 2 }}>
-            A midday nudge if you have not logged yet. Email only.
-          </div>
+          <div style={{ fontFamily: ARCHIVO, fontSize: 15 }}>BADGES & ITEMS</div>
+          <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7 }}>Your collection and all-time stats</div>
         </div>
-        <button
-          onClick={() => setRemindersOff((v) => !v)}
-          aria-label="Toggle reminders"
-          className="nb"
-          style={{
-            width: 62,
-            height: 34,
-            borderRadius: 999,
-            border: `3px solid ${INK}`,
-            background: remindersOff ? '#EFE6C6' : '#37C871',
-            position: 'relative',
-            cursor: 'pointer',
-            flexShrink: 0,
-            boxShadow: `3px 3px 0 ${INK}`,
-          }}
-        >
-          <span style={{ position: 'absolute', top: 2, left: remindersOff ? 2 : 30, width: 24, height: 24, borderRadius: 999, background: '#fff', border: `2px solid ${INK}`, transition: 'left .15s ease' }} />
-        </button>
-      </div>
+        <div style={{ fontSize: 18, fontWeight: 900 }}>→</div>
+      </button>
+
+      <NotificationSettings token={user.secret_token} />
+
+      <button
+        onClick={() => router.push(`/me/${user.secret_token}/email`)}
+        className="nb"
+        style={{ ...card, width: '100%', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', background: '#fff' }}
+      >
+        <div style={{ fontSize: 24 }}>✉️</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: ARCHIVO, fontSize: 15 }}>EMAIL PREFERENCES</div>
+          <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.7 }}>Choose what lands in your inbox</div>
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 900 }}>→</div>
+      </button>
 
       {err && <div style={{ color: '#C21F3A', fontWeight: 800, fontSize: 13, marginBottom: 12 }}>{err}</div>}
       {msg && <div style={{ color: '#1E7F45', fontWeight: 800, fontSize: 13, marginBottom: 12 }}>{msg}</div>}
