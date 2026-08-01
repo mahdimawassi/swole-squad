@@ -1,6 +1,8 @@
 import { getAdmin } from './supabaseAdmin';
 import { EMPTY_STATS, earnedBadgeKeys, type LifetimeStats } from './badges';
 import { rollItem, ITEM_BY_KEY, type Item } from './items';
+import { BADGE_BY_KEY } from './badges';
+import { notify } from './notify';
 import { dayIndex, todayStr, streakFor, phaseOf, dailyTarget } from './challenge';
 import type { Challenge } from './types';
 
@@ -170,10 +172,43 @@ export async function evaluateAndAward(userId: string, extra?: Partial<LifetimeS
 
   await supabase.from('user_badges').insert(fresh.map((badge_key) => ({ user_id: userId, badge_key })));
 
-  // Every badge earns a box. That keeps boxes tied to achievement rather than to
-  // opening the app, which is the difference between a reward and a slot machine.
-  const boxes = fresh.map((k) => ({ user_id: userId, source: `badge:${k}` }));
+  // A badge earns a box, but never more than a few at a time. Catching someone
+  // up on months of history would otherwise dump a dozen boxes in their lap at
+  // once, which turns the reveal from a treat into admin. Normal play unlocks
+  // one or two badges at a time, so this cap only ever bites on a backfill.
+  const MAX_BOXES_PER_BATCH = 3;
+  const boxes = fresh
+    .slice(0, MAX_BOXES_PER_BATCH)
+    .map((k) => ({ user_id: userId, source: `badge:${k}` }));
   const { error } = await supabase.from('loot_boxes').insert(boxes);
+
+  // Tell them about it, but keep it to a couple of pings rather than one per
+  // badge, which would be a wall of notifications on a backfill.
+  const toAnnounce = fresh.slice(0, 2);
+  for (const key of toAnnounce) {
+    const badge = BADGE_BY_KEY[key];
+    if (!badge) continue;
+    await notify({
+      userId,
+      type: 'badge',
+      title: `Badge unlocked: ${badge.name}`,
+      body: badge.description,
+      icon: badge.emoji,
+      url: '/collection',
+      push: fresh.length <= 3, // stay quiet during a big catch-up
+    });
+  }
+  if (fresh.length > toAnnounce.length) {
+    await notify({
+      userId,
+      type: 'badge',
+      title: `+${fresh.length - toAnnounce.length} more badges unlocked`,
+      body: 'Open your collection to see them all.',
+      icon: '🏅',
+      url: '/collection',
+      push: false,
+    });
+  }
 
   return { newBadges: fresh, newBoxes: error ? 0 : boxes.length };
 }

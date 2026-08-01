@@ -180,3 +180,64 @@ export async function getUnopenedBoxes(userId: string): Promise<{ id: string; so
     .order('created_at', { ascending: true });
   return (data ?? []) as { id: string; source: string }[];
 }
+
+// ---------- bulk fetch for the hub ----------
+// The hub used to run two queries per challenge. With a few challenges that is a
+// pile of sequential round trips, and the page just sits there. This pulls every
+// member and every log in two queries total, then slices it up in memory.
+export async function getMembersForChallenges(challengeIds: string[]): Promise<Map<string, Member[]>> {
+  const out = new Map<string, Member[]>();
+  if (challengeIds.length === 0) return out;
+
+  const supabase = getAdmin();
+  const { data } = await supabase
+    .from('participants')
+    .select('id, challenge_id, user_id, joined_at, users(name, avatar_color, avatar_style, equipped)')
+    .in('challenge_id', challengeIds)
+    .is('removed_at', null)
+    .order('joined_at', { ascending: true });
+
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    challenge_id: string;
+    user_id: string;
+    joined_at: string;
+    users:
+      | { name: string; avatar_color: string; avatar_style: string; equipped: Record<string, string> }
+      | { name: string; avatar_color: string; avatar_style: string; equipped: Record<string, string> }[]
+      | null;
+  }[];
+
+  for (const r of rows) {
+    const u = Array.isArray(r.users) ? r.users[0] : r.users;
+    const member: Member = {
+      participant_id: r.id,
+      user_id: r.user_id,
+      name: u?.name ?? 'Someone',
+      avatar_color: u?.avatar_color ?? '#4D7CFF',
+      avatar_style: u?.avatar_style ?? 'classic',
+      equipped: u?.equipped ?? {},
+      joined_at: r.joined_at,
+    };
+    const arr = out.get(r.challenge_id);
+    if (arr) arr.push(member);
+    else out.set(r.challenge_id, [member]);
+  }
+  return out;
+}
+
+export async function getLogsByParticipant(participantIds: string[]): Promise<Map<string, LogRow[]>> {
+  const out = new Map<string, LogRow[]>();
+  if (participantIds.length === 0) return out;
+
+  const supabase = getAdmin();
+  const { data } = await supabase.from('logs').select('*').in('participant_id', participantIds);
+  const rows = normLogs((data ?? []) as Record<string, unknown>[]);
+
+  for (const l of rows) {
+    const arr = out.get(l.participant_id);
+    if (arr) arr.push(l);
+    else out.set(l.participant_id, [l]);
+  }
+  return out;
+}

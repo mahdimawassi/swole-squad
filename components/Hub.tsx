@@ -32,12 +32,14 @@ export default function Hub({
   justCreated,
   boxCount = 0,
   badgeCount = 0,
+  unread = 0,
 }: {
   user: User;
   entries: HubEntry[];
   justCreated?: string;
   boxCount?: number;
   badgeCount?: number;
+  unread?: number;
 }) {
   const router = useRouter();
   const [today, setToday] = useState('');
@@ -138,6 +140,7 @@ export default function Hub({
       {!user.email && <EmailGate token={user.secret_token} name={user.name} />}
 
       <Header
+        bell={{ token: user.secret_token, unread }}
         badge={user.name.toUpperCase()}
         badgeHref={`/me/${user.secret_token}/profile`}
         sub={
@@ -226,7 +229,7 @@ export default function Hub({
       {entries.length === 0 && (
         <div style={{ ...card, textAlign: 'center' }}>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <SwoleGuy total={0} totalGoal={100} color={user.avatar_color} size={110} style={user.avatar_style} />
+            <SwoleGuy total={0} totalGoal={100} color={user.avatar_color} size={110} style={user.avatar_style} equipped={user.equipped} />
           </div>
           <div style={{ fontFamily: ARCHIVO, fontSize: 19, marginTop: 6 }}>NOTHING GOING ON</div>
           <p style={{ fontWeight: 600, fontSize: 13, marginTop: 6, marginBottom: 0 }}>
@@ -302,7 +305,7 @@ export default function Hub({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <SwoleGuy total={e.total} totalGoal={goal} color={user.avatar_color} size={62} style={user.avatar_style} />
+                <SwoleGuy total={e.total} totalGoal={goal} color={user.avatar_color} size={62} style={user.avatar_style} equipped={user.equipped} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800, marginBottom: 4 }}>
                     <span>{lv.title}</span>

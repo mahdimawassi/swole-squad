@@ -34,7 +34,7 @@ async function run(): Promise<{ pushed: number; emailed: number; skipped: number
   for (const challenge of challenges) {
     const { data: partRows } = await supabase
       .from('participants')
-      .select('id, user_id, users(name, email, avatar_color, email_reminders, email_unsubscribed)')
+      .select('id, user_id, users(name, email, avatar_color, email_reminders, email_unsubscribed, push_reminders)')
       .eq('challenge_id', challenge.id)
       .is('removed_at', null);
 
@@ -42,8 +42,8 @@ async function run(): Promise<{ pushed: number; emailed: number; skipped: number
       id: string;
       user_id: string;
       users:
-        | { name: string; email: string | null; avatar_color: string; email_reminders: boolean; email_unsubscribed: boolean }
-        | { name: string; email: string | null; avatar_color: string; email_reminders: boolean; email_unsubscribed: boolean }[]
+        | { name: string; email: string | null; avatar_color: string; email_reminders: boolean; email_unsubscribed: boolean; push_reminders: boolean }
+        | { name: string; email: string | null; avatar_color: string; email_reminders: boolean; email_unsubscribed: boolean; push_reminders: boolean }[]
         | null;
     }[];
     if (parts.length === 0) continue;
@@ -92,7 +92,7 @@ async function run(): Promise<{ pushed: number; emailed: number; skipped: number
 
       // Prefer a phone notification. It gets seen, it is free, and it keeps the
       // inbox quiet. Email is the fallback for anyone who has not enabled push.
-      const delivered = await sendPushToUser(p.user_id, {
+      const delivered = u.push_reminders === false ? 0 : await sendPushToUser(p.user_id, {
         title: `${emojiFor(challenge.activity)} Still to do today`,
         body: `You have not hit today's goal in ${challenge.name}: ${goalLabel(challenge)}. Do not break the streak.`,
         url: link || '/',

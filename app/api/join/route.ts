@@ -3,6 +3,7 @@ import { getAdmin } from '@/lib/supabaseAdmin';
 import { getChallengeByCode, getUserByEmail, getUserByToken } from '@/lib/data';
 import { AVATAR_COLORS, normalizeCode } from '@/lib/challenge';
 import { sendAccessLink, isEmail, emailEnabled } from '@/lib/email';
+import { notify } from '@/lib/notify';
 
 function mask(email: string): string {
   const [local, domain] = email.split('@');
@@ -101,6 +102,18 @@ export async function POST(req: Request) {
         .insert({ challenge_id: challenge.id, user_id: user.id });
       if (pErr) return NextResponse.json({ error: 'Could not add you to the challenge.' }, { status: 500 });
       joinedNow = true;
+    }
+
+    // The person who set the challenge up cares most that someone showed up.
+    if (joinedNow && challenge.created_by && challenge.created_by !== user.id) {
+      await notify({
+        userId: challenge.created_by,
+        type: 'join',
+        title: `${user.name} joined ${challenge.name}`,
+        body: 'Your squad is growing.',
+        icon: '🤝',
+        url: `/c/${challenge.id}`,
+      });
     }
 
     const link = `${origin}/me/${user.secret_token}`;

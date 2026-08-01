@@ -14,6 +14,9 @@ export async function POST(req: Request) {
     if (!user) return NextResponse.json({ error: 'We could not find you.' }, { status: 404 });
 
     const patch: Record<string, boolean> = {};
+    // Push preferences ride along on the same endpoint: same idea, different channel.
+    if (body?.push_reminders !== undefined) patch.push_reminders = Boolean(body.push_reminders);
+    if (body?.push_social !== undefined) patch.push_social = Boolean(body.push_social);
     if (body?.email_reminders !== undefined) patch.email_reminders = Boolean(body.email_reminders);
     if (body?.email_activity !== undefined) patch.email_activity = Boolean(body.email_activity);
     if (body?.email_unsubscribed !== undefined) {

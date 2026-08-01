@@ -188,6 +188,53 @@ export function earnedBadgeKeys(s: LifetimeStats): string[] {
   return out;
 }
 
+// How close are you to a badge you have not got yet? Returns null when it is not
+// a measurable one (the hidden ones are meant to stay mysterious).
+export function badgeProgress(key: string, s: LifetimeStats): { have: number; need: number } | null {
+  const reps = s.totalsByUnit['reps'] ?? 0;
+  const km = s.totalsByUnit['km'] ?? 0;
+  const steps = s.totalsByUnit['steps'] ?? 0;
+
+  const m = key.match(/^(reps|km|steps)_(\d+)$/);
+  if (m) {
+    const have = m[1] === 'reps' ? reps : m[1] === 'km' ? km : steps;
+    return { have, need: Number(m[2]) };
+  }
+
+  const streak = key.match(/^streak_(\d+)$/);
+  if (streak) return { have: s.bestStreak, need: Number(streak[1]) };
+
+  const days = key.match(/^days_(\d+)$/);
+  if (days) return { have: s.daysLogged, need: Number(days[1]) };
+
+  const finish = key.match(/^finish_(\d+)$/);
+  if (finish) return { have: s.challengesCompleted, need: Number(finish[1]) };
+
+  const perfect = key.match(/^perfect_(\d+)$/);
+  if (perfect) return { have: s.perfectChallenges, need: Number(perfect[1]) };
+
+  const creator = key.match(/^creator_(\d+)$/);
+  if (creator) return { have: s.challengesCreated, need: Number(creator[1]) };
+
+  const recruit = key.match(/^recruit_(\d+)$/);
+  if (recruit) return { have: s.peopleRecruited, need: Number(recruit[1]) };
+
+  const cheer = key.match(/^cheer_(\d+)$/);
+  if (cheer) return { have: s.reactionsGiven, need: Number(cheer[1]) };
+
+  if (key === 'multi_3') return { have: s.challengesJoined, need: 3 };
+
+  return null;
+}
+
+export const FAMILY_META: Record<BadgeFamily, { label: string; blurb: string; emoji: string }> = {
+  volume: { label: 'Volume', blurb: 'Total amount, across every challenge you have ever done', emoji: '📊' },
+  consistency: { label: 'Consistency', blurb: 'Showing up day after day', emoji: '🔥' },
+  completion: { label: 'Completion', blurb: 'Seeing challenges through to the end', emoji: '🏁' },
+  social: { label: 'Squad', blurb: 'Starting things and dragging people in', emoji: '🤝' },
+  hidden: { label: 'Secret', blurb: 'You will find these by accident', emoji: '🕵️' },
+};
+
 // Progress towards the next rung of a ladder, for the "almost there" nudge.
 export function nextVolumeGoal(unit: string, total: number): { at: number; name: string } | null {
   const tiers = unit === 'km' ? DISTANCE_TIERS : unit === 'steps' ? STEP_TIERS : REP_TIERS;

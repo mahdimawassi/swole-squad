@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Bell from './Bell';
 import { ARCHIVO, INK, pill } from '@/lib/ui';
 
 // One header everywhere. The logo always goes home (your hub if we know you),
@@ -11,11 +12,13 @@ export default function Header({
   sub,
   back,
   badgeHref,
+  bell,
 }: {
   badge?: string;
   sub?: string;
   back?: string | boolean;
   badgeHref?: string;
+  bell?: { token: string; unread: number };
 }) {
   const router = useRouter();
   const [home, setHome] = useState('/');
@@ -81,6 +84,7 @@ export default function Header({
         >
           🏋️ SWOLE SQUAD
         </button>
+        {bell && <Bell token={bell.token} unread={bell.unread} />}
         {badge &&
           (badgeHref ? (
             <button

@@ -12,6 +12,8 @@ export type User = {
   email_reminders?: boolean;
   email_activity?: boolean;
   email_unsubscribed?: boolean;
+  push_reminders?: boolean;
+  push_social?: boolean;
   created_at?: string;
 };
 

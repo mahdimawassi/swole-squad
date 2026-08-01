@@ -76,7 +76,7 @@ export default function Profile({ user, challengeCount }: { user: User; challeng
 
       <div style={{ ...card, textAlign: 'center' }}>
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <SwoleGuy total={60} totalGoal={100} color={color} size={110} style={avatarStyle} />
+          <SwoleGuy total={60} totalGoal={100} color={color} size={110} style={avatarStyle} equipped={user.equipped} />
         </div>
         <div style={{ fontFamily: ARCHIVO, fontSize: 20, marginTop: 4 }}>{name.toUpperCase() || 'YOU'}</div>
         <div style={{ fontWeight: 700, fontSize: 12, opacity: 0.7, marginTop: 4 }}>
@@ -177,7 +177,11 @@ export default function Profile({ user, challengeCount }: { user: User; challeng
         <div style={{ fontSize: 18, fontWeight: 900 }}>→</div>
       </button>
 
-      <NotificationSettings token={user.secret_token} />
+      <NotificationSettings
+        token={user.secret_token}
+        prefReminders={user.push_reminders !== false}
+        prefSocial={user.push_social !== false}
+      />
 
       <button
         onClick={() => router.push(`/me/${user.secret_token}/email`)}

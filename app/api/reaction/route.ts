@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdmin } from '@/lib/supabaseAdmin';
 import { getUserByToken } from '@/lib/data';
 import { REACTION_EMOJIS } from '@/lib/challenge';
+import { notify } from '@/lib/notify';
 
 // Toggle an emoji reaction on another member within a challenge.
 export async function POST(req: Request) {
@@ -50,6 +51,24 @@ export async function POST(req: Request) {
       p_emoji: emoji,
     });
     if (error) return NextResponse.json({ error: 'Could not react.' }, { status: 500 });
+
+    // Only ping on the way ON, and never for reacting to yourself.
+    if (data === true && toUser !== user.id) {
+      const { data: ch } = await supabase
+        .from('challenges')
+        .select('name')
+        .eq('id', challengeId)
+        .maybeSingle();
+      await notify({
+        userId: toUser,
+        type: 'reaction',
+        title: `${user.name} reacted ${emoji}`,
+        body: ch?.name ? `In ${ch.name}` : undefined,
+        // Stored relative; the bell prefixes the viewer's own /me/<token>.
+        url: `/c/${challengeId}`,
+        icon: emoji,
+      });
+    }
 
     return NextResponse.json({ ok: true, on: data === true });
   } catch {

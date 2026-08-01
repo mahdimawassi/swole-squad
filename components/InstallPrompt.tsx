@@ -174,11 +174,38 @@ export default function InstallPrompt({ token, active }: { token: string; active
         </button>
       </div>
 
-      {(android || !installed) && !ios && (
-        <p style={{ fontSize: 12, fontWeight: 600, opacity: 0.7, marginBottom: 0, marginTop: 10 }}>
-          Tip: use your browser menu and choose <b>Install app</b> or <b>Add to Home screen</b> to get an icon
-          too.
-        </p>
+      {!ios && !installed && (
+        <div style={{ marginTop: 12, borderTop: `2px solid rgba(20,20,20,.15)`, paddingTop: 10 }}>
+          {howTo ? (
+            <ol style={{ margin: 0, paddingLeft: 20, fontWeight: 600, fontSize: 13, lineHeight: 1.7 }}>
+              <li>
+                Stay on <b>this page</b>, then tap the <b>⋮</b> menu at the top right of Chrome
+              </li>
+              <li>
+                Tap <b>{android ? 'Add to Home screen' : 'Install'}</b>, then confirm
+              </li>
+              <li>Open Swole Squad from the new icon and it will remember you</li>
+            </ol>
+          ) : (
+            <button
+              onClick={() => setHowTo(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: 12,
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                color: INK,
+                opacity: 0.75,
+                fontFamily: 'inherit',
+                padding: 0,
+              }}
+            >
+              Want the icon on your home screen too?
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

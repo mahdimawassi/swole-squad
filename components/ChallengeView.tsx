@@ -407,7 +407,15 @@ export default function ChallengeView({
 
           <div style={{ ...card, textAlign: 'center' }}>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <SwoleGuy total={myTotal} totalGoal={goal} color={user.avatar_color} size={185} flexing={flexing} style={user.avatar_style} />
+              <SwoleGuy
+                total={myTotal}
+                totalGoal={goal}
+                color={user.avatar_color}
+                size={185}
+                flexing={flexing}
+                style={user.avatar_style}
+                equipped={user.equipped}
+              />
             </div>
             <div style={{ fontFamily: ARCHIVO, fontSize: 23, marginTop: 6 }}>{user.name.toUpperCase()}</div>
             <div
@@ -567,7 +575,7 @@ export default function ChallengeView({
               {[0, 0.25, 0.5, 0.75, 1].map((frac, i) => (
                 <div key={i} style={{ textAlign: 'center', flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <SwoleGuy total={frac * goal} totalGoal={goal} color={user.avatar_color} size={58} style={user.avatar_style} />
+                    <SwoleGuy total={frac * goal} totalGoal={goal} color={user.avatar_color} size={58} style={user.avatar_style} equipped={user.equipped} />
                   </div>
                   <div style={{ fontSize: 10, fontWeight: 800, marginTop: 2 }}>{Math.round(frac * 100)}%</div>
                 </div>
@@ -616,7 +624,14 @@ export default function ChallengeView({
                   <div style={{ fontFamily: ARCHIVO, fontSize: 19, width: 32, textAlign: 'center' }}>
                     {i === 0 ? '👑' : `#${i + 1}`}
                   </div>
-                  <SwoleGuy total={s.total} totalGoal={goal} color={s.member.avatar_color} size={52} style={s.member.avatar_style} />
+                  <SwoleGuy
+                    total={s.total}
+                    totalGoal={goal}
+                    color={s.member.avatar_color}
+                    size={52}
+                    style={s.member.avatar_style}
+                    equipped={s.member.equipped}
+                  />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: ARCHIVO, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {s.member.name}

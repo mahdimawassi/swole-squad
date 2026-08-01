@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import {
+  isAndroid,
   currentState,
   enablePush,
   disablePush,
@@ -13,11 +14,33 @@ import { INK, ARCHIVO, card, btn } from '@/lib/ui';
 
 // The permanent home for notification settings, so people can turn them on or
 // off later without waiting for the prompt to reappear.
-export default function NotificationSettings({ token }: { token: string }) {
+export default function NotificationSettings({
+  token,
+  prefReminders = true,
+  prefSocial = true,
+}: {
+  token: string;
+  prefReminders?: boolean;
+  prefSocial?: boolean;
+}) {
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [howTo, setHowTo] = useState(false);
+  const [reminders, setReminders] = useState(prefReminders);
+  const [social, setSocial] = useState(prefSocial);
+
+  async function savePref(patch: Record<string, boolean>) {
+    try {
+      await fetch('/api/email-prefs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, ...patch }),
+      });
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     registerServiceWorker();
@@ -54,7 +77,10 @@ export default function NotificationSettings({ token }: { token: string }) {
             {state === 'ready' && 'Off. Turn them on to get a nudge instead of an email.'}
             {state === 'denied' &&
               'Blocked by your browser. Re-allow notifications for this site in your browser settings.'}
-            {state === 'unsupported' && 'This browser cannot do notifications. You will get emails instead.'}
+            {state === 'unsupported' &&
+              (isAndroid()
+                ? 'Open the site in Chrome to switch notifications on.'
+                : 'This browser cannot do notifications. You will get emails instead.')}
             {state === 'needs-install' &&
               'Add Swole Squad to your Home Screen first, then notifications become available.'}
           </div>
@@ -121,6 +147,32 @@ export default function NotificationSettings({ token }: { token: string }) {
         </>
       )}
 
+      {on && (
+        <div style={{ marginTop: 14, borderTop: `2px solid rgba(20,20,20,.15)`, paddingTop: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, opacity: 0.6, marginBottom: 8 }}>SEND ME</div>
+          <MiniToggle
+            label="Daily reminder"
+            hint="If you have not logged by midday"
+            on={reminders}
+            onToggle={() => {
+              const next = !reminders;
+              setReminders(next);
+              savePref({ push_reminders: next });
+            }}
+          />
+          <MiniToggle
+            label="Squad activity"
+            hint="Reactions, badges you unlock, people joining"
+            on={social}
+            onToggle={() => {
+              const next = !social;
+              setSocial(next);
+              savePref({ push_social: next });
+            }}
+          />
+        </div>
+      )}
+
       {note && <div style={{ fontWeight: 800, fontSize: 13, marginTop: 10 }}>{note}</div>}
 
       {isIOS() && state === 'on' && (
@@ -128,6 +180,56 @@ export default function NotificationSettings({ token }: { token: string }) {
           Notifications work per device, so switch them on separately on your other phones or laptops.
         </div>
       )}
+    </div>
+  );
+}
+
+function MiniToggle({
+  label,
+  hint,
+  on,
+  onToggle,
+}: {
+  label: string;
+  hint: string;
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 800, fontSize: 13 }}>{label}</div>
+        <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.7 }}>{hint}</div>
+      </div>
+      <button
+        onClick={onToggle}
+        aria-label={`Toggle ${label}`}
+        className="nb"
+        style={{
+          width: 48,
+          height: 27,
+          borderRadius: 999,
+          border: `2px solid ${INK}`,
+          background: on ? '#37C871' : '#EFE6C6',
+          position: 'relative',
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute',
+            top: 2,
+            left: on ? 23 : 2,
+            width: 19,
+            height: 19,
+            borderRadius: 999,
+            background: '#fff',
+            border: `2px solid ${INK}`,
+            transition: 'left .15s ease',
+          }}
+        />
+      </button>
     </div>
   );
 }
